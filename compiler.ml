@@ -13,6 +13,7 @@
  *)
 
 open Printf;;
+open Typesystem;;
 
 (* TODO
  *
@@ -278,4 +279,8 @@ let compile file expr =
     close_out oc;;
 
 let () = 
-    compile "output.dot" test2;;
+    compile "output.dot" test2;
+    let tp = calcul_type test2 in 
+    tp.constraints 
+        |> List.map print_equation;
+    print_newline ();;

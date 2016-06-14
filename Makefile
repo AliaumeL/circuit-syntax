@@ -1,6 +1,6 @@
 
 OCAMLCC=ocamlc
-OSRC=utils.ml ast.ml dot.ml compiler.ml
+OSRC=utils.ml ast.ml dot.ml typesystem.ml compiler.ml 
 OSRCL=utils.mli ast.mli dot.mli
 
 .PHONY: test clean doc
