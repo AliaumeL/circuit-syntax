@@ -80,6 +80,7 @@ let equation_of_list eqn =
 
 
 module VarType = Map.Make(String);; 
+type 'a var_type_map = 'a VarType.t;;
 
 let union_vars = VarType.union (fun k x y -> Some (x @ y));; 
 
@@ -87,7 +88,7 @@ type c_type = {
     constraints : equation list;
     itype       : c_var;
     otype       : c_var;
-    vtypes      : (v_id * v_id) list VarType.t 
+    vtypes      : (v_id * v_id) list var_type_map 
 };;
 
 let base_type n m = 
@@ -207,7 +208,6 @@ let calcul_type circuit =
     let nvar = newvarid () in 
     print_matrix (construire_matrice resulting_type.constraints nvar);
     resulting_type;;
-
 
 
 
