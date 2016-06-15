@@ -17,9 +17,6 @@ open Typesystem;;
 
 (* TODO
  *
- * 1. Terminer la compilation vers dot [DONE]
- * 2. Faire des dessins plus jolis pour les fork et join (ainsi que forget et create) [DONE]
- *
  * 3. Ajouter le typechecking à l'intérieur du calcul [CURRENT]
  *
  * 4. Rendre le code plus joli de manière globale : modules, 
@@ -40,6 +37,7 @@ open Typesystem;;
  * d'informations ?
  *
  *)
+
 
 open Utils;;
 open Ast;;
@@ -159,7 +157,7 @@ let compile_bind_i x s =
                |> List.map (fun id -> Dot.shadowLink bid None id None) 
     in
     (bid, { expr = Dot.addDots (binder.expr :: s.expr :: liens);
-      inputs = (bid, Some 1) :: s.inputs;
+      inputs = (bid, None) :: s.inputs;
       outputs = s.outputs;
       vars   = Variables.remove x s.vars });;
 
@@ -176,7 +174,7 @@ let compile_bind_o x s =
     in
     (bid, { expr = Dot.addDots (s.expr :: binder.expr :: liens);
       inputs = s.inputs;
-      outputs = (bid, Some 1) :: s.outputs;
+      outputs = (bid, None) :: s.outputs;
       vars   = Variables.remove x s.vars });;
 
 
@@ -205,7 +203,7 @@ let compile_link l s =
                           let obid = Variables.find o obidMap in 
                           Dot.shadowLink obid None ibid None)
     in
-    { 
+    {
         expr = Dot.addDots (ns2.expr :: last_links);
         inputs = s.inputs;
         outputs = s.outputs; 
@@ -269,7 +267,7 @@ let compile_vers_dot circuit =
     let liens_input  = inside.inputs  |> List.map (fun (id,p) -> Dot.link sid None id p) in 
     let liens_output = inside.outputs |> List.map (fun (id,p) -> Dot.link id p fid None) in 
     { 
-        expr = Dot.addDots ([ss.expr] @ liens_input @ [inside.expr ; sf.expr] @ liens_output);
+        expr = Dot.addDots ([ss.expr ; inside.expr] @ liens_input @ [ sf.expr] @ liens_output);
         inputs = inside.inputs;
         outputs = inside.outputs;
         vars = inside.vars
@@ -301,7 +299,16 @@ let test2 =
     let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
 
     let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
-    linked_sub === const "H" 2 1;; 
+    trace (linked_sub === const "FINAL FUN" 2 1);; 
+
+
+let test3 = 
+    let bloc i o v = (vari "c" ||| vari "x" ||| vari i) === const "B" 3 1 === const v 1 1 === varo o in 
+    let b1     = bloc "i1" "o1" "F" in 
+    let b2     = bloc "i2" "o2" "G" in 
+    let b3     = links [("i1","o2");("i2","o1")] ((b1 ||| b2) === (vari "i2" ||| vari "i1" ||| vari "c") === const "B" 3 1) in 
+    let b4     = bindi "x" (bindi "c" b3) in 
+    b4;;
 
 let compile file expr =
     let oc = open_out file in 
@@ -309,7 +316,7 @@ let compile file expr =
     close_out oc;;
 
 let () = 
-    compile "output.dot" test2;
+    compile "output.dot" test3;
     let tp = calcul_type test in 
     tp.constraints 
         |> List.map print_equation;
