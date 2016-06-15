@@ -243,6 +243,7 @@ let compile_vers_dot circuit =
                                   vars    = s.vars } 
                 end
         | Par (s1,s2) -> 
+                (* align inputs in parallel composition *)
                 let align_in  =  s1.inputs @ s2.inputs |> List.map fst |> Dot.same_rankdir in 
                 { expr    = Dot.addDots [s1.expr; s2.expr; align_in];
                   inputs  = s1.inputs  @ s2.inputs;
@@ -276,6 +277,22 @@ let compile_vers_dot circuit =
         outputs = inside.outputs;
         vars = inside.vars
     };;
+
+
+
+
+
+
+
+
+(****************************************
+ *                                      *
+ * NOW THE CODE THE USER WILL SEE/USE   *
+ *                                      *
+ ****************************************)
+
+
+
 
 let test  = links [("x","y")] (vari "x" === const "F" 1 1  === (f ||| vari "x") === (varo "y" ||| j) === const "G" 1 1);;
 
