@@ -24,6 +24,27 @@ open Utils;;
  *
  *)
 
+(***
+ *
+ * On fait un pivot de gauss
+ *
+ *)
+type matrice = int array array;; 
+
+let construire_matrice eqns vmax = 
+    let n   = List.length eqns in 
+    let mat = Array.make_matrix n (vmax + 1) 0 in  
+    List.iteri (fun i (e,c) -> 
+        List.iter (fun (v,j) -> mat.(i).(j) <- v) e) eqns;
+    mat;;
+
+let print_matrix m = 
+    Array.iter (fun l -> 
+        Array.iter (fun i -> print_string " "; print_int i; print_string " ") l;
+        print_newline ()) m;;
+
+
+
 (***** Le système de type ******)
 
 type v_id   = int;;
@@ -182,4 +203,11 @@ let calcul_type circuit =
                 in
                 cstr_type make_equations a.vtypes
     in
-    foldc accum_type circuit;; 
+    let resulting_type = foldc accum_type circuit in
+    let nvar = newvarid () in 
+    print_matrix (construire_matrice resulting_type.constraints nvar);
+    resulting_type;;
+
+
+
+

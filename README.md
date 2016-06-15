@@ -12,4 +12,3 @@ and the compilator associated.
 ## Type system
 
 ## Writing complex diagrams
-

@@ -317,7 +317,7 @@ let compile file expr =
 
 let () = 
     compile "output.dot" test3;
-    let tp = calcul_type test in 
+    let tp = calcul_type test3 in 
     tp.constraints 
         |> List.map print_equation;
     print_newline ();;
