@@ -242,10 +242,12 @@ let compile_vers_dot circuit =
                                   outputs = r2;
                                   vars    = s.vars } 
                 end
-        | Par (s1,s2) -> { expr    = Dot.addDot s1.expr s2.expr;
-                           inputs  = s1.inputs  @ s2.inputs;
-                           outputs = s1.outputs @ s2.outputs;
-                           vars    = mergeVars s1.vars s2.vars } 
+        | Par (s1,s2) -> 
+                let align_in  =  s1.inputs @ s2.inputs |> List.map fst |> Dot.same_rankdir in 
+                { expr    = Dot.addDots [s1.expr; s2.expr; align_in];
+                  inputs  = s1.inputs  @ s2.inputs;
+                  outputs = s1.outputs @ s2.outputs;
+                  vars    = mergeVars s1.vars s2.vars } 
            
         | Seq (s1,s2) -> 
                 (* ne fait pas de vérification de types ici : peut produire 
