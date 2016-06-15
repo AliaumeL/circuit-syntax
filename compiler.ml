@@ -20,6 +20,9 @@ open Typesystem;;
  * 1. Terminer la compilation vers dot [DONE]
  * 2. Faire des dessins plus jolis pour les fork et join (ainsi que forget et create) [DONE]
  *
+ * 2.
+ *  a) Ajouter plus de possibilités pour les arrêtes et les noeuds (style)
+ *  b) Utiliser rankdir=same  
  * 3. Ajouter le typechecking à l'intérieur du calcul 
  *
  * 4. Rendre le code plus joli de manière globale : modules, 
@@ -96,6 +99,15 @@ let dot_basic_uid name n m =
 let dot_basic name n m = 
     dot_basic_uid name n m |> snd;;
 
+(** 
+ * Construire un élément sans ports de manière générique avec des propriétés 
+ * quelconques 
+ *)
+let dot_generic_uid n m mods = 
+    let (id,e) = Dot.mkNode mods in 
+    let ins    = range n |> List.map (fun i -> (id, None))  in 
+    let outs   = range m |> List.map (fun i -> (id, None))  in 
+    (id, { expr = e; inputs = ins; outputs = outs; vars = Variables.empty });; 
 
 (**
  * Construit un élément basique de type « point » (connection)
@@ -106,10 +118,7 @@ let dot_point_uid name n m =
               |> Dot.mod_label name
               |> Dot.mod_shape "point"
     in
-    let (id,e) = Dot.mkNode mods in 
-    let ins    = range n |> List.map (fun i -> (id, None))  in 
-    let outs   = range m |> List.map (fun i -> (id, None))  in 
-    (id, { expr = e; inputs = ins; outputs = outs; vars = Variables.empty });; 
+    dot_generic_uid n m mods;; 
 
 (**
  * Construit un élément basique de type « point » (connection)
@@ -143,7 +152,12 @@ let occurences s x =
 
 let compile_bind_i x s =  
     let occurences_x = occurences s x in 
-    let (bid,binder) = dot_point_uid ("BindI " ^ x) 1 0 in  
+    let mods   = Dot.baseMod
+              |> Dot.mod_label ("BindI " ^ x)  
+              |> Dot.mod_style "invisible"
+              |> Dot.mod_shape "point"
+    in
+    let (bid,binder) = dot_generic_uid 1 0 mods in  
     let liens  = occurences_x
                |> List.map (fun id -> Dot.shadowLink bid None id None) 
     in
@@ -154,7 +168,12 @@ let compile_bind_i x s =
 
 let compile_bind_o x s = 
     let occurences_x = occurences s x in  
-    let (bid,binder) = dot_point_uid ("BindO " ^ x) 0 1 in  
+    let mods   = Dot.baseMod
+              |> Dot.mod_label ("BindO " ^ x)  
+              |> Dot.mod_shape "point"
+              |> Dot.mod_style "invisible"
+    in
+    let (bid,binder) = dot_generic_uid 0 1 mods in  
     let liens  = occurences_x
                |> List.map (fun id -> Dot.shadowLink id None bid None) 
     in
@@ -241,8 +260,12 @@ let compile_vers_dot circuit =
                 }
     in
     let inside = foldc accum_compile circuit in 
-    let (sid,ss) = dot_point_uid "input"  0 0 in 
-    let (fid,sf) = dot_point_uid "output" 0 0 in 
+    let mods n = Dot.baseMod 
+             |> Dot.mod_shape "circle"
+             |> Dot.mod_label n
+    in
+    let (sid,ss) = dot_generic_uid 0 0 (mods "IN")  in 
+    let (fid,sf) = dot_generic_uid 0 0 (mods "OUT") in 
     let liens_input  = inside.inputs  |> List.map (fun (id,p) -> Dot.link sid None id p) in 
     let liens_output = inside.outputs |> List.map (fun (id,p) -> Dot.link id p fid None) in 
     { 

@@ -52,7 +52,8 @@ let renderMods m = m
     |> String.concat ",";;
 
 let mod_shape x = SM.add "shape" x;;
-let mod_label x = SM.add "label" (surround "\"" "\"" x)
+let mod_label x = SM.add "label" (surround "\"" "\"" x);;
+let mod_style x = SM.add "style" (surround "\"" "\"" x);;
 
 (* 
  * Construit un label associé à un noeud, un port
