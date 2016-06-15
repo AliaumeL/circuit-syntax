@@ -57,4 +57,16 @@ let surround p q s =
     if s = "" then "" else p ^ s ^ q;;
 
 
-let tests = [ ("Check prout", fun () -> assert false) ];; 
+
+(******
+ *
+ * TESTS UNITAIRES 
+ *
+ ******)
+let tests = [ 
+              ("range length"  , fun () -> assert (List.length (range 10)   = 10));
+              ("range start"   , fun () -> assert (List.hd     (range 10)   = 1));
+              ("range end"     , fun () -> assert (List.nth    (range 10) 9 = 10));
+              ("surround empty", fun () -> assert ("" = surround "a" "b" ""));
+              ("surround"      , fun () -> assert ("abc" = surround "a" "b" "c"))
+    ];; 
