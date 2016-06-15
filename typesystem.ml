@@ -24,7 +24,7 @@ type c_var  = Const of int | Var of v_id;;
 
 let varid = ref 0;;
 
-let newvarid () = incr varid; !varid;;
+let newvarid () = incr varid; print_int !varid; print_newline (); !varid;;
 
 type equation = (int * v_id) list * int;;
 

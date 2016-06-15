@@ -17,8 +17,9 @@ open Typesystem;;
 
 (* TODO
  *
- * 1. Terminer la compilation vers dot
- * 2. Faire des dessins plus jolis pour les fork et join (ainsi que forget et create)
+ * 1. Terminer la compilation vers dot [DONE]
+ * 2. Faire des dessins plus jolis pour les fork et join (ainsi que forget et create) [DONE]
+ *
  * 3. Ajouter le typechecking à l'intérieur du calcul 
  *
  * 4. Rendre le code plus joli de manière globale : modules, 
@@ -95,14 +96,6 @@ let dot_basic_uid name n m =
 let dot_basic name n m = 
     dot_basic_uid name n m |> snd;;
 
-(** 
- * Construit un élément basique de type variable du domaine sémantique  et oublie
- * son identifiant 
- * *)
-let dot_variable name n m = 
-    let (id,s) = dot_basic_uid name n m in 
-    let k = Variables.singleton name (VarLocs.singleton id) in  
-    { expr = s.expr; inputs = s.inputs; outputs = s.outputs; vars = k };; 
 
 (**
  * Construit un élément basique de type « point » (connection)
@@ -125,6 +118,15 @@ let dot_point_uid name n m =
 let dot_point name n m =
     dot_point_uid name n m |> snd;;
 
+(** 
+ * Construit un élément basique de type variable du domaine sémantique  et oublie
+ * son identifiant 
+ * *)
+let dot_variable name n m = 
+    let (id,s) = dot_point_uid name n m in 
+    let k = Variables.singleton name (VarLocs.singleton id) in  
+    { expr = s.expr; inputs = s.inputs; outputs = s.outputs; vars = k };; 
+
 
 (**
  * Récupère dans un élément du domaine 
@@ -138,16 +140,6 @@ let occurences s x =
         Variables.find x s.vars 
     else 
         VarLocs.empty) |> VarLocs.elements;;
-
-(*****
- * TODO:
- * Faire en sorte que ce soit plus joli 
- *
- * -> des fonctions séparées pour les bindI/O/L
- *
- * Et faire des fonctions génériques pour éviter la duplication du code 
- *
- *)
 
 let compile_bind_i x s =  
     let occurences_x = occurences s x in 
@@ -176,51 +168,37 @@ let compile_link l s =
     let invars  = l |> List.map fst |> remove_duplicates in 
     let outvars = l |> List.map snd |> remove_duplicates in 
 
-    let ibids = invars 
-             |> List.map (fun v -> 
-                     let (bid,binder) = dot_point_uid ("BindI " ^ v) 1 0 in 
-                     (bid,binder,v))
-    in 
-
-    let obids   = outvars 
-                |> List.map (fun v -> 
-                        let (bid, binder) = dot_point_uid ("BindO " ^ v) 0 1 in 
-                        (bid,binder,v))
+    let (ibinders,ns1) = invars
+                      |> List.fold_left (fun (ibids, ns) v -> 
+                             let (bid,binder) = compile_bind_i v ns in  
+                             ((v,bid) :: ibids, binder)) ([], s)
     in
 
-    let firstLinks = ibids |> List.map (fun (bid,_,v) -> 
-        occurences s v |> List.map (fun id -> Dot.shadowLink bid None id None) |> Dot.addDots)
+    let (obinders,ns2) = outvars 
+                      |> List.fold_left (fun (obids, ns) v -> 
+                             let (bid,binder) = compile_bind_o v ns in  
+                             ((v,bid) :: obids, binder))  ([], ns1)
     in
 
-    let secondLinks = obids |> List.map (fun (bid,_,v) -> 
-        occurences s v |> List.map (fun id -> Dot.shadowLink id None bid None) |> Dot.addDots) 
+    let ibidMap = ibinders |> vars_of_list in 
+    let obidMap = obinders |> vars_of_list in 
+
+    let last_links = l
+                  |> List.map (fun (i,o) -> 
+                          let ibid = Variables.find i ibidMap in 
+                          let obid = Variables.find o obidMap in 
+                          Dot.shadowLink obid None ibid None)
     in
-
-    let ibidMap = ibids |> List.map (fun (x,y,z) -> (z,x)) |> vars_of_list in  
-    let obidMap = obids |> List.map (fun (x,y,z) -> (z,x)) |> vars_of_list in  
-
-
-    let lastLinks = l
-                 |> List.map (fun (i,o) ->
-                         let ibid = Variables.find i ibidMap in 
-                         let obid = Variables.find o obidMap in 
-                         Dot.shadowLink obid None ibid None) 
-    in
-
-    let iexpr = ibids |> List.map (fun (x,y,z) -> y.expr) in 
-    let oexpr = obids |> List.map (fun (x,y,z) -> y.expr) in 
-
     { 
-        expr = Dot.addDots (iexpr @ [s.expr] @ firstLinks @ oexpr @ secondLinks @ lastLinks);
+        expr = Dot.addDots (ns2.expr :: last_links);
         inputs = s.inputs;
         outputs = s.outputs; 
-        vars = List.fold_left (flip Variables.remove) s.vars (invars @ outvars) (* FIXME : typecheck ? *) 
-    }
-
-
+        vars = List.fold_left (flip Variables.remove) s.vars (invars @ outvars)
+    };;
 
 
 let compile_vers_dot circuit =
+    let faire_lien (a,b) (c,d) = Dot.link a b c d in 
     let accum_compile = function
         | Id x          -> dot_basic "Id"     x x
         | Twist         -> dot_basic "Twist"  2 2 
@@ -254,7 +232,6 @@ let compile_vers_dot circuit =
                 (* ne fait pas de vérification de types ici : peut produire 
                  * du code incorrect si les deux ne peuvent pas de composer
                  *)
-                let faire_lien (a,b) (c,d) = Dot.link a b c d in 
                 let liens_construire = zipWith faire_lien s1.outputs s2.inputs in   
                 {
                     expr = Dot.addDots (s1.expr :: s2.expr :: liens_construire);
@@ -263,13 +240,27 @@ let compile_vers_dot circuit =
                     vars    = mergeVars s1.vars s2.vars
                 }
     in
-    foldc accum_compile circuit;; 
+    let inside = foldc accum_compile circuit in 
+    let (sid,ss) = dot_point_uid "input"  0 0 in 
+    let (fid,sf) = dot_point_uid "output" 0 0 in 
+    let liens_input  = inside.inputs  |> List.map (fun (id,p) -> Dot.link sid None id p) in 
+    let liens_output = inside.outputs |> List.map (fun (id,p) -> Dot.link id p fid None) in 
+    { 
+        expr = Dot.addDots ([ss.expr] @ liens_input @ [inside.expr ; sf.expr] @ liens_output);
+        inputs = inside.inputs;
+        outputs = inside.outputs;
+        vars = inside.vars
+    };;
 
 let test  = links [("x","y")] (vari "x" === const "F" 1 1  === (f ||| vari "x") === (varo "y" ||| j) === const "G" 1 1);;
+
 let test2 = 
     let bloc1 = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1" in 
+
     let bloc2 = (vari "i2" ||| id 1) === const "G" 2 1 === varo "o2" in 
+
     let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
+
     let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
     linked_sub === const "H" 2 1;; 
 
@@ -280,7 +271,7 @@ let compile file expr =
 
 let () = 
     compile "output.dot" test2;
-    let tp = calcul_type test2 in 
+    let tp = calcul_type test in 
     tp.constraints 
         |> List.map print_equation;
     print_newline ();;
