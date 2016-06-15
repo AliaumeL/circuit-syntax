@@ -30,7 +30,7 @@ type uid      = int;;
  *
  *)
 let addPrelude   = 
-    let debut = String.concat "\n" ["digraph G {"; "graph [rankdir=LR];"; "edge [arrowhead=none,arrowtail=none];"] in 
+    let debut = String.concat "\n" ["digraph G {"; "graph [rankdir=LR];"; "edge [arrowhead=none,arrowtail=none];\n"] in 
     let fin   = "}" in 
     surround debut fin;;
 
