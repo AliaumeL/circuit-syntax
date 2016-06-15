@@ -57,3 +57,4 @@ let surround p q s =
     if s = "" then "" else p ^ s ^ q;;
 
 
+let tests = [ ("Check prout", fun () -> assert false) ];; 

@@ -105,3 +105,5 @@ let same_rankdir l =
 let addDot  = (^);; 
 let addDots = List.fold_left addDot "";;
 
+
+let tests = [ ("Check prout", fun () -> assert false) ];; 

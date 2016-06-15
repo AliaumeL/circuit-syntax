@@ -40,3 +40,5 @@ val same_rankdir : uid list -> dot
 
 val addDot : dot -> dot -> dot 
 val addDots : dot list -> dot 
+
+val tests : (string * (unit -> unit)) list 

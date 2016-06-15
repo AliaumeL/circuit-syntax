@@ -34,3 +34,6 @@ val zipWith   : ('a -> 'b -> 'c) -> 'a list -> 'b list -> 'c list
  * surroundings ! 
  *)
 val surround  : string -> string -> string -> string
+
+
+val tests : (string * (unit -> unit)) list 
