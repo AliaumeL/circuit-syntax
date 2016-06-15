@@ -20,10 +20,7 @@ open Typesystem;;
  * 1. Terminer la compilation vers dot [DONE]
  * 2. Faire des dessins plus jolis pour les fork et join (ainsi que forget et create) [DONE]
  *
- * 2.
- *  a) Ajouter plus de possibilités pour les arrêtes et les noeuds (style)
- *  b) Utiliser rankdir=same  
- * 3. Ajouter le typechecking à l'intérieur du calcul 
+ * 3. Ajouter le typechecking à l'intérieur du calcul [CURRENT]
  *
  * 4. Rendre le code plus joli de manière globale : modules, 
  *    nommage moins implicite, noms de variables, signatures ... la totale 

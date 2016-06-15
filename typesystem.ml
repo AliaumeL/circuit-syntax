@@ -17,6 +17,13 @@ open Utils;;
     *)
 
 
+(* TODO
+ * 
+ * résolution algèbre linéaire programmation linéaire matrice 
+ * TUM ?
+ *
+ *)
+
 (***** Le système de type ******)
 
 type v_id   = int;;
