@@ -94,6 +94,14 @@ let link  = fun i1 x i2 y ->
 let shadowLink i1 x i2 y = 
     mkLabel i1 x "out" ^ " -> " ^ mkLabel i2 y "in" ^ " [style=dotted]\n";;  
 
+
+(**
+ * syntaxe :  {rank=same; q1 q2 ... qn}
+ *)
+let same_rankdir l = 
+    let s = surround "{rank=same;" "}\n" in
+    l |> List.map (fun id -> mkLabel id None "") |> String.concat " " |> s;; 
+
 let addDot  = (^);; 
 let addDots = List.fold_left addDot "";;
 
