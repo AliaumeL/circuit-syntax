@@ -1,10 +1,4 @@
 
-type matrice = int array array
-val construire_matrice :
-  ((int * int) list * 'a) list -> int -> int array array
-
-val print_matrix : int array array -> unit
-
 type v_id = int
 
 type c_var = Const of int | Var of v_id

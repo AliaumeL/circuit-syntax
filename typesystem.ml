@@ -33,15 +33,94 @@ type matrice = int array array;;
 
 let construire_matrice eqns vmax = 
     let n   = List.length eqns in 
-    let mat = Array.make_matrix n (vmax + 1) 0 in  
+    let mat = Array.make_matrix n vmax 0. in  
+    let b   = Array.make n 0. in 
     List.iteri (fun i (e,c) -> 
-        List.iter (fun (v,j) -> mat.(i).(j) <- v) e) eqns;
-    mat;;
+        b.(i) <- float_of_int c;
+        List.iter (fun (v,j) -> mat.(i).(j) <- float_of_int v) e) eqns;
+    (mat,b);;
+
+let print_line b = 
+    Array.iter (fun i -> print_string " "; print_float i; print_string " ") b;
+    print_newline ();;
 
 let print_matrix m = 
     Array.iter (fun l -> 
-        Array.iter (fun i -> print_string " "; print_int i; print_string " ") l;
+        Array.iter (fun i -> print_string " "; print_float i; print_string " ") l;
         print_newline ()) m;;
+
+
+let permute_lignes i j v =   
+    let tmp = v.(i) in 
+    v.(i) <- v.(j);
+    v.(j) <- tmp;;
+
+let pivot_colonne j m =  
+    let k = ref j in 
+    for i = 0 to Array.length m - 1 do 
+        if m.(i).(j) <> 0. then 
+            k := i
+    done;
+    if m.(!k).(j) <> 0. then
+        Some (!k)
+    else
+        None;;
+
+let eliminate j m b =   
+    let p = m.(j).(j) in 
+    for i = j + 1 to Array.length m - 1 do 
+        let v = m.(i).(j) in 
+        let c = v /. p in 
+        for k = 0 to Array.length m.(j) - 1 do 
+            m.(i).(k) <- m.(i).(k) -. m.(j).(k) *. c 
+        done;
+        b.(i) <- b.(i) -. b.(j) *. c
+    done;;
+
+let produit = Array.map2 (fun a b -> a *. b);;  
+let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
+
+let gauss_test m b = 
+    try
+        for j = 0 to min (Array.length m.(0) - 1) (Array.length m - 1) do 
+            begin
+                match pivot_colonne j m with 
+                    | Some k -> 
+                        permute_lignes j k m;
+                        permute_lignes j k b;
+                        eliminate j m b
+                    | None -> raise Exit;
+            end
+        done;
+        Some true;
+    with Exit -> None;;
+
+let is_valid_elim m b = 
+    let ligs = Array.length m in 
+    let cols = Array.length m.(0) in 
+    range (ligs - cols) 
+        |> List.map (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.) 
+        |> List.for_all (fun x -> x);;
+
+let remontee_types rm rb = 
+    let cols = Array.length rm.(0) in 
+    let xs   = Array.make cols 0.  in
+    for i = cols - 1 downto 0 do  
+        xs.(i) <- (rb.(i) -. somme (produit xs rm.(i))) /. rm.(i).(i) 
+    done;
+    xs;;
+
+
+let resolution_type m b =  
+    let rm = Array.map Array.copy m in     
+    let rb = Array.copy b in 
+    match gauss_test rm rb with
+        | None -> failwith "Erreur de typage : pas assez de contraintes"
+        | Some _ -> 
+            if is_valid_elim rm rb then 
+                remontee_types rm rb
+            else
+                failwith "Erreur de typage : contraintes insatisfaisables";;
 
 
 
@@ -50,7 +129,7 @@ let print_matrix m =
 type v_id   = int;;
 type c_var  = Const of int | Var of v_id;;
 
-let varid = ref 0;;
+let varid = ref (-1);;
 
 let newvarid () = incr varid; print_int !varid; print_newline (); !varid;;
 
@@ -98,12 +177,13 @@ let base_type n m =
       vtypes = VarType.empty
     };;
 
-let var_type nom = 
+let var_type nom a b= 
     let ivar = newvarid () in 
-    let ovar = newvarid () in 
-    { constraints = [];
+    let ovar = newvarid () in  
+    { constraints = [ [ (1,Var ivar); (-1, Const a)];
+                      [ (1,Var ovar); (-1, Const b)]] |> List.map equation_of_list ;
       itype  = Var ivar;
-      otype  = Var ovar;
+      otype  = Var ovar; 
       vtypes = VarType.singleton nom [(ivar,ovar)]
     };;
 
@@ -132,13 +212,15 @@ let calcul_type circuit =
                 let eqn_i i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
                 let eqn_o o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
                 let make_equations i o = 
-                    [eqn_i i; eqn_o o] |> List.map equation_of_list |> (@) a.constraints
+                    [eqn_i i; eqn_o o] |> List.map equation_of_list |> (@) (a.constraints @ b.constraints)
                 in
                 cstr_type make_equations (union_vars a.vtypes b.vtypes)
         | Seq (a,b)     -> 
                 let eqn_join = [ (1,a.otype) ; (-1,b.itype) ] in
+                let eqn_inpt i = [ (1,a.itype) ; (-1, i) ] in 
+                let eqn_opt  o = [ (1,b.otype) ; (-1, o) ] in 
                 let make_equations i o = 
-                    [ eqn_join ] |> List.map equation_of_list |> (@) a.constraints
+                    [ eqn_join ; eqn_inpt i ; eqn_opt o ] |> List.map equation_of_list |> (@) (a.constraints @ b.constraints)
                 in
                 cstr_type make_equations (union_vars a.vtypes b.vtypes)
         | Trace a       -> 
@@ -206,7 +288,8 @@ let calcul_type circuit =
     in
     let resulting_type = foldc accum_type circuit in
     let nvar = newvarid () in 
-    print_matrix (construire_matrice resulting_type.constraints nvar);
+    let (m,b) = construire_matrice resulting_type.constraints nvar in 
+    print_line (resolution_type m b);
     resulting_type;;
 
 

@@ -5,7 +5,7 @@ OSRCL=utils.mli ast.mli dot.mli typesystem.mli
 
 .PHONY: test clean doc
 
-comp: $(OSRC) $(OSRCL)
+comp: $(OSRC) $(OSRCL) compiler.ml
 	$(OCAMLCC) $(OSRCL)
 	$(OCAMLCC) -o comp $(OSRC) compiler.ml
 
