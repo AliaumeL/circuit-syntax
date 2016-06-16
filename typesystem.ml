@@ -148,6 +148,7 @@ let equation_of_list eqn =
     let cst = List.fold_left addV 0 eqn in   
     (vars, - cst);;
 
+let make_equations = List.map equation_of_list;; 
 
 module VarType = Map.Make(String);; 
 type 'a var_type_map = 'a VarType.t;;
@@ -190,6 +191,17 @@ let cstr_type cstr types =
 let union_types a b = 
     (union_vars a.vtypes b.vtypes, a.constraints @ b.constraints);;
 
+let eqn_fam a x = 
+    if not (VarType.mem x a.vtypes) then 
+        []
+    else 
+        let tmpvari = newvarid () in  
+        let tmpvaro = newvarid () in  
+        a.vtypes |> VarType.find x 
+                 |> List.map (fun (i,o) -> [ [ (1, Var i); (-1, Var tmpvari) ];
+                                             [ (1, Var o); (-1, Var tmpvaro) ] ])
+                 |> List.concat;;
+
 (** Le calcul de type le plus simple du monde **)
 let calcul_type circuit = 
     let accum_type = function
@@ -229,54 +241,21 @@ let calcul_type circuit =
         | BindI (x,a)   -> 
                 let eqn_i i = [ (1,a.itype) ; (-1,i) ; (1, Const 1)] in
                 let eqn_o o = [ (1,a.otype) ; (-1,o) ] in
-                let eqn_fam = 
-                    if not (VarType.mem x a.vtypes) then 
-                        []
-                    else 
-                        let tmpvari = newvarid () in  
-                        let tmpvaro = newvarid () in  
-                        a.vtypes |> VarType.find x 
-                                 |> List.map (fun (i,o) -> [ [ (1, Var i); (-1, Var tmpvari) ];
-                                                             [ (1, Var o); (-1, Var tmpvaro) ] ])
-                                 |> List.concat
-                in
                 let make_equations i o = 
-                    (eqn_i i :: eqn_o o :: eqn_fam) |> List.map equation_of_list |> (@) a.constraints
+                    (eqn_i i :: eqn_o o :: eqn_fam a x) |> List.map equation_of_list |> (@) a.constraints
                 in
                 cstr_type make_equations (VarType.remove x a.vtypes) 
         | BindO (x,a)   -> 
                 let eqn_i i = [ (1,a.itype) ; (-1,i) ] in
                 let eqn_o o = [ (1,a.otype) ; (-1,o) ; (1, Const 1)] in
-                let eqn_fam = 
-                    if not (VarType.mem x a.vtypes) then 
-                        []
-                    else 
-                        let tmpvari = newvarid () in  
-                        let tmpvaro = newvarid () in  
-                        a.vtypes |> VarType.find x 
-                                 |> List.map (fun (i,o) -> [ [ (1, Var i); (-1, Var tmpvari) ];
-                                                             [ (1, Var o); (-1, Var tmpvaro) ] ])
-                                 |> List.concat
-                in
                 let make_equations i o = 
-                    (eqn_i i :: eqn_o o :: eqn_fam) |> List.map equation_of_list |> (@) a.constraints
+                    (eqn_i i :: eqn_o o :: eqn_fam a x) |> List.map equation_of_list |> (@) a.constraints
                 in
                 cstr_type make_equations (VarType.remove x a.vtypes) 
         | Links (l,a)   -> 
                 let eqn_i i   = [ (1,a.itype) ; (-1,i) ] in
                 let eqn_o o   = [ (1,a.otype) ; (-1,o) ] in
-                let eqn_fam x = 
-                    if not (VarType.mem x a.vtypes) then 
-                        []
-                    else 
-                        let tmpvari = newvarid () in  
-                        let tmpvaro = newvarid () in  
-                        a.vtypes |> VarType.find x 
-                                 |> List.map (fun (i,o) -> [ [ (1, Var i); (-1, Var tmpvari) ];
-                                                             [ (1, Var o); (-1, Var tmpvaro) ] ])
-                                 |> List.concat
-                in
-                let eqn_fams = l |> List.map (fun (x,y) -> eqn_fam x @ eqn_fam y) |> List.concat in
+                let eqn_fams = l |> List.map (fun (x,y) -> eqn_fam a x @ eqn_fam a y) |> List.concat in
                 let make_equations i o = 
                     (eqn_i i :: eqn_o o :: eqn_fams) |> List.map equation_of_list|> (@) a.constraints
                 in
