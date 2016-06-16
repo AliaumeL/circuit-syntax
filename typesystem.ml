@@ -126,8 +126,8 @@ let calcul_type circuit =
         | Forget        -> base_type 1 0
         | Create        -> base_type 0 1
         | Const (x,y,z) -> base_type y z 
-        | VarI  y       -> var_type y 
-        | VarO  y       -> var_type y 
+        | VarI  y       -> base_type 0 1
+        | VarO  y       -> base_type 1 0
         | Par (a,b)     -> 
                 let eqn_i i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
                 let eqn_o o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
