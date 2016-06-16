@@ -68,5 +68,5 @@ let tests = [
               ("range start"   , fun () -> assert (List.hd     (range 10)   = 1));
               ("range end"     , fun () -> assert (List.nth    (range 10) 9 = 10));
               ("surround empty", fun () -> assert ("" = surround "a" "b" ""));
-              ("surround"      , fun () -> assert ("abc" = surround "a" "b" "c"))
+              ("surround"      , fun () -> assert ("abc" = surround "a" "c" "b"))
     ];; 

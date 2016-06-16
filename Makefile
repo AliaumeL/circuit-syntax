@@ -7,7 +7,7 @@ OSRCL=utils.mli ast.mli dot.mli typesystem.mli
 
 comp: $(OSRC) $(OSRCL) compiler.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o comp $(OSRC) compiler.ml
+	$(OCAMLCC) -g -o comp $(OSRC) compiler.ml
 
 test.pdf: comp
 	./comp
@@ -22,7 +22,7 @@ doc: doc/index.html
 test: test.pdf
 	open test.pdf
 
-tests: $(OSRC) $(OSRCL)
+tests: $(OSRC) $(OSRCL) tests.ml
 	$(OCAMLCC) $(OSRCL)
 	$(OCAMLCC) -o tests $(OSRC) tests.ml
 	./tests

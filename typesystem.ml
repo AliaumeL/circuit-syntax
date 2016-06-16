@@ -48,8 +48,8 @@ let permute_lignes i j v =
 
 let pivot_colonne j m =  
     let k = ref j in 
-    for i = 0 to Array.length m - 1 do 
-        if m.(i).(j) <> 0. then 
+    for i = j to Array.length m - 1 do 
+        if m.(i).(j) <> 0. && (m.(!k).(j) = 0. || abs_float m.(i).(j) < abs_float m.(!k).(j)) then 
             k := i
     done;
     if m.(!k).(j) <> 0. then
@@ -84,7 +84,7 @@ let gauss_test m b =
             end
         done;
         Some true;
-    with Exit -> None;;
+    with Exit -> print_string "pas ok\n"; None;;
 
 let is_valid_elim m b = 
     let ligs = Array.length m in 
@@ -95,8 +95,9 @@ let is_valid_elim m b =
 
 let remontee_types rm rb = 
     let cols = Array.length rm.(0) in 
+    let ligs = Array.length rm in 
     let xs   = Array.make cols 0.  in
-    for i = cols - 1 downto 0 do  
+    for i = min (cols - 1) (ligs - 1) downto 0 do  
         xs.(i) <- (rb.(i) -. somme (produit xs rm.(i))) /. rm.(i).(i) 
     done;
     xs;;
@@ -105,14 +106,18 @@ let remontee_types rm rb =
 let resolution_type m b =
     let rm = Array.map Array.copy m in     
     let rb = Array.copy b in 
-    match gauss_test rm rb with
-        | None -> failwith "Erreur de typage : pas assez de contraintes"
-        | Some _ -> 
-                print_matrix m;
-            if is_valid_elim rm rb then 
-                remontee_types rm rb
-            else
-                failwith "Erreur de typage : contraintes insatisfaisables";;
+    let ligs = Array.length m in 
+    let cols = Array.length m.(0) in 
+    if ligs < cols then 
+        failwith "Pass assez d'équations pour déterminer un unique type (cas général)"
+    else
+        match gauss_test rm rb with
+            | None -> failwith "Erreur de typage : pas assez de contraintes"
+            | Some _ -> 
+                if is_valid_elim rm rb then 
+                    remontee_types rm rb
+                else
+                    failwith "Erreur de typage : contraintes insatisfaisables";;
 
 
 
@@ -275,4 +280,64 @@ let calcul_type circuit =
     (resulting_type, !constraints);;
 
 
+
+let tests = [
+    ("pivot identity", fun () ->   
+        let m = [| [| 1.; 0. |] ; [| 0. ; 1. |] |] in
+        let b = [| 0. ; 0. |] in 
+        gauss_test m b; assert (m =  [| [| 1.; 0. |] ; [| 0. ; 1. |] |]));
+    ("pivot simple", fun () ->   
+        let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
+        let b = [| 0. ; 0. |] in 
+        gauss_test m b; assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
+    ("pivot twist", fun () ->   
+        let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
+        let b = [| 0. ; 0. |] in 
+        gauss_test m b; assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
+    ("pivot special", fun () ->   
+        let m = [| [| -1. ; 0. ; 0. |]; [| 0.; 0.;0. |]; [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |] |] in
+        let b = [| 0. ; 0. ; 0. ; 0. |] in 
+        gauss_test m b; assert (m =  [| [| -1. ; 0. ; 0. |];  [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |]; [| 0.; 0.;0. |] |]));
+    ("pivot example", fun () ->   
+        let m =[|[| -1.;  0. ; 0. ; 1. ; 0. ; 0. |];
+                 [|  0.;  0. ; 1. ; 0. ; -1.;  0.|]; 
+                 [|  0.;  1. ; 0. ; 0. ; 0. ; -1.|]; 
+                 [|  0.;  0. ; 1. ; -1.;  0.;  0.|]; 
+                 [|  1.;  -1.;  0.;  0.;  0.;  0.|] |] in  
+        let b = [| 0. ; 0. ; 0. ; 0. ; 0. |] in 
+        gauss_test m b; assert (m = 
+        [|  [|-1.;  0.;  0.;  1. ; 0. ; 0. |]; 
+            [| 0.;  1.;  0.;  0. ; 0. ; -1.|];
+            [| 0.;  0.;  1.;  0. ; -1.;  0.|];
+            [| 0.;  0.;  0.;  -1.;  1.;  0.|];
+            [| 0.;  0.;  0.;  0. ; 1. ; -1.|] |]));
+    ("pivot second membre", fun () ->   
+        let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
+        let b = [| 1. ; 1. |] in 
+        gauss_test m b; assert (b =  [| 1. ; -1. |]));
+    ("pivot second membre twist", fun () ->   
+        let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
+        let b = [| 1. ; 1. |] in 
+        gauss_test m b; assert (b =  [| 1. ; -1. |]));
+    ("is_valid simple true (1)", fun () -> 
+        let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in
+        let b = [| 1. ; 1. |] in 
+        assert (is_valid_elim m b = true)); 
+    ("is_valid simple true (2)", fun () -> 
+        let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in
+        let b = [| 1. ; 0. |] in 
+        assert (is_valid_elim m b = true)); 
+    ("is_valid simple true (3)", fun () -> 
+        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 0.; 0. |] |] in
+        let b = [| 1. ; 7. ; 0. |] in 
+        assert (is_valid_elim m b = true)); 
+    ("is_valid simple false (1)", fun () -> 
+        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 0.; 0. |] |] in
+        let b = [| 1. ; 7. ; 1. |] in 
+        assert (is_valid_elim m b = false)); 
+    ("is_valid simple false (2)", fun () -> 
+        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 1.; 0. |] |] in
+        let b = [| 1. ; 7. ; 0. |] in 
+        assert (is_valid_elim m b = false)); 
+];;
 

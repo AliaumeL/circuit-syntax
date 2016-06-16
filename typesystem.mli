@@ -68,3 +68,4 @@ val remove_variables :
   (VarType.key * VarType.key) list -> 'a VarType.t -> 'a VarType.t
 val eqn_fam : c_type -> VarType.key -> (int * c_var) list list
 val calcul_type : Ast.circ -> c_type * ((int * v_id) list * int) list
+val tests : (string * (unit -> unit)) list
