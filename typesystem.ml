@@ -16,20 +16,11 @@ open Utils;;
     *
     *)
 
-
-(* TODO
- * 
- * résolution algèbre linéaire programmation linéaire matrice 
- * TUM ?
- *
- *)
-
 (***
  *
  * On fait un pivot de gauss
  *
  *)
-type matrice = int array array;; 
 
 let construire_matrice eqns vmax = 
     let n   = List.length eqns in 
@@ -131,7 +122,7 @@ type c_var  = Const of int | Var of v_id;;
 
 let varid = ref (-1);;
 
-let newvarid () = incr varid; print_int !varid; print_newline (); !varid;;
+let newvarid () = incr varid; !varid;;
 
 type equation = (int * v_id) list * int;;
 
@@ -196,6 +187,9 @@ let cstr_type cstr types =
       vtypes = types 
     };;
 
+let union_types a b = 
+    (union_vars a.vtypes b.vtypes, a.constraints @ b.constraints);;
+
 (** Le calcul de type le plus simple du monde **)
 let calcul_type circuit = 
     let accum_type = function
@@ -211,18 +205,20 @@ let calcul_type circuit =
         | Par (a,b)     -> 
                 let eqn_i i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
                 let eqn_o o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
+                let (types, constr) = union_types a b in 
                 let make_equations i o = 
-                    [eqn_i i; eqn_o o] |> List.map equation_of_list |> (@) (a.constraints @ b.constraints)
+                    [eqn_i i; eqn_o o] |> List.map equation_of_list |> (@) constr
                 in
-                cstr_type make_equations (union_vars a.vtypes b.vtypes)
+                cstr_type make_equations types 
         | Seq (a,b)     -> 
                 let eqn_join = [ (1,a.otype) ; (-1,b.itype) ] in
                 let eqn_inpt i = [ (1,a.itype) ; (-1, i) ] in 
                 let eqn_opt  o = [ (1,b.otype) ; (-1, o) ] in 
+                let (types, constr) = union_types a b in 
                 let make_equations i o = 
-                    [ eqn_join ; eqn_inpt i ; eqn_opt o ] |> List.map equation_of_list |> (@) (a.constraints @ b.constraints)
+                    [ eqn_join ; eqn_inpt i ; eqn_opt o ] |> List.map equation_of_list |> (@) constr
                 in
-                cstr_type make_equations (union_vars a.vtypes b.vtypes)
+                cstr_type make_equations types
         | Trace a       -> 
                 let eqn_i i = [ (1,a.itype) ; (-1,i) ; (-1, Const 1)] in
                 let eqn_o o = [ (1,a.otype) ; (-1,o) ; (-1, Const 1)] in
