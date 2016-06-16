@@ -156,15 +156,13 @@ type 'a var_type_map = 'a VarType.t;;
 let union_vars = VarType.union (fun k x y -> Some (x @ y));; 
 
 type c_type = {
-    constraints : equation list;
     itype       : c_var;
     otype       : c_var;
     vtypes      : (v_id * v_id) list var_type_map 
 };;
 
 let base_type n m = 
-    { constraints = [];
-      itype  = Const n;
+    { itype  = Const n;
       otype  = Const m;
       vtypes = VarType.empty
     };;
@@ -172,24 +170,29 @@ let base_type n m =
 let var_type nom a b= 
     let ivar = newvarid () in 
     let ovar = newvarid () in  
-    { constraints = [ [ (1,Var ivar); (-1, Const a)];
-                      [ (1,Var ovar); (-1, Const b)]] |> List.map equation_of_list ;
-      itype  = Var ivar;
+    let c = [ [ (1,Var ivar); (-1, Const a)];
+                      [ (1,Var ovar); (-1, Const b)]]
+    in
+    (c,  
+      { itype  = Var ivar;
       otype  = Var ovar; 
       vtypes = VarType.singleton nom [(ivar,ovar)]
-    };;
+      });;
 
-let cstr_type cstr types = 
+let compose_type types = 
     let ivar = newvarid () in 
     let ovar = newvarid () in 
-    { constraints = cstr (Var ivar) (Var ovar);
+    (Var ivar, Var ovar, { 
       itype  = Var ivar;
       otype  = Var ovar;
       vtypes = types 
-    };;
+    });;
 
-let union_types a b = 
-    (union_vars a.vtypes b.vtypes, a.constraints @ b.constraints);;
+let union_vtypes a b = 
+    union_vars a.vtypes b.vtypes;;
+
+let remove_variables l m = 
+    List.fold_left (fun x (y,z) -> VarType.remove z (VarType.remove y x)) m l;; 
 
 let eqn_fam a x = 
     if not (VarType.mem x a.vtypes) then 
@@ -204,6 +207,11 @@ let eqn_fam a x =
 
 (** Le calcul de type le plus simple du monde **)
 let calcul_type circuit = 
+    let constraints = ref [] in (* list of equations *) 
+    let add_constraints l = l 
+                 |> make_equations  
+                 |> (fun e -> constraints := e @ !constraints)
+    in
     let accum_type = function
         | Id x          -> base_type x x
         | Twist         -> base_type 2 2
@@ -211,61 +219,57 @@ let calcul_type circuit =
         | Fork          -> base_type 1 2
         | Forget        -> base_type 1 0
         | Create        -> base_type 0 1
-        | Const (x,y,z) -> base_type y z 
-        | VarI  y       -> base_type 0 1
-        | VarO  y       -> base_type 1 0
+        | Const (x,y,z) -> base_type y z
+        | VarI  y       -> let (c,v) = var_type y 0 1 in 
+                           add_constraints c;
+                           v
+        | VarO  y       -> let (c,v) = var_type y 1 0 in 
+                           add_constraints c;
+                           v
         | Par (a,b)     -> 
-                let eqn_i i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
-                let eqn_o o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
-                let (types, constr) = union_types a b in 
-                let make_equations i o = 
-                    [eqn_i i; eqn_o o] |> List.map equation_of_list |> (@) constr
-                in
-                cstr_type make_equations types 
+                let (i,o,r) = compose_type (union_vtypes a b) in 
+                let eqn_i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
+                let eqn_o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
+                add_constraints [eqn_i ; eqn_o ];
+                r
         | Seq (a,b)     -> 
+                let (i,o,r) = compose_type (union_vtypes a b) in   
                 let eqn_join = [ (1,a.otype) ; (-1,b.itype) ] in
-                let eqn_inpt i = [ (1,a.itype) ; (-1, i) ] in 
-                let eqn_opt  o = [ (1,b.otype) ; (-1, o) ] in 
-                let (types, constr) = union_types a b in 
-                let make_equations i o = 
-                    [ eqn_join ; eqn_inpt i ; eqn_opt o ] |> List.map equation_of_list |> (@) constr
-                in
-                cstr_type make_equations types
+                let eqn_inpt = [ (1,a.itype) ; (-1, i) ] in 
+                let eqn_opt  = [ (1,b.otype) ; (-1, o) ] in 
+                add_constraints [eqn_join ; eqn_inpt ; eqn_opt ];
+                r
         | Trace a       -> 
-                let eqn_i i = [ (1,a.itype) ; (-1,i) ; (-1, Const 1)] in
-                let eqn_o o = [ (1,a.otype) ; (-1,o) ; (-1, Const 1)] in
-                let make_equations i o = 
-                    [eqn_i i; eqn_o o] |> List.map equation_of_list|> (@) a.constraints
-                in
-                cstr_type make_equations a.vtypes
+                let (i,o,r) = compose_type a.vtypes in   
+                let eqn_i = [ (1,a.itype) ; (-1,i) ; (-1, Const 1)] in
+                let eqn_o = [ (1,a.otype) ; (-1,o) ; (-1, Const 1)] in
+                add_constraints [eqn_i ; eqn_o ];
+                r
         | BindI (x,a)   -> 
-                let eqn_i i = [ (1,a.itype) ; (-1,i) ; (1, Const 1)] in
-                let eqn_o o = [ (1,a.otype) ; (-1,o) ] in
-                let make_equations i o = 
-                    (eqn_i i :: eqn_o o :: eqn_fam a x) |> List.map equation_of_list |> (@) a.constraints
-                in
-                cstr_type make_equations (VarType.remove x a.vtypes) 
+                let (i,o,r) = compose_type (VarType.remove x a.vtypes) in   
+                let eqn_i = [ (1,a.itype) ; (-1,i) ; (1, Const 1)] in
+                let eqn_o = [ (1,a.otype) ; (-1,o) ] in
+                add_constraints (eqn_i :: eqn_o :: eqn_fam a x);
+                r
         | BindO (x,a)   -> 
-                let eqn_i i = [ (1,a.itype) ; (-1,i) ] in
-                let eqn_o o = [ (1,a.otype) ; (-1,o) ; (1, Const 1)] in
-                let make_equations i o = 
-                    (eqn_i i :: eqn_o o :: eqn_fam a x) |> List.map equation_of_list |> (@) a.constraints
-                in
-                cstr_type make_equations (VarType.remove x a.vtypes) 
+                let (i,o,r) = compose_type (VarType.remove x a.vtypes) in   
+                let eqn_i = [ (1,a.itype) ; (-1,i) ] in
+                let eqn_o = [ (1,a.otype) ; (-1,o); (1, Const 1) ] in
+                add_constraints (eqn_i :: eqn_o :: eqn_fam a x);
+                r
         | Links (l,a)   -> 
-                let eqn_i i   = [ (1,a.itype) ; (-1,i) ] in
-                let eqn_o o   = [ (1,a.otype) ; (-1,o) ] in
+                let (i,o,r) = compose_type (remove_variables l a.vtypes) in
+                let eqn_i = [ (1,a.itype) ; (-1,i) ] in
+                let eqn_o = [ (1,a.otype) ; (-1,o) ] in
                 let eqn_fams = l |> List.map (fun (x,y) -> eqn_fam a x @ eqn_fam a y) |> List.concat in
-                let make_equations i o = 
-                    (eqn_i i :: eqn_o o :: eqn_fams) |> List.map equation_of_list|> (@) a.constraints
-                in
-                cstr_type make_equations a.vtypes
+                add_constraints (eqn_i :: eqn_o :: eqn_fams);
+                r
     in
     let resulting_type = foldc accum_type circuit in
     let nvar = newvarid () in 
-    let (m,b) = construire_matrice resulting_type.constraints nvar in 
+    let (m,b) = construire_matrice !constraints nvar in 
     print_line (resolution_type m b);
-    resulting_type;;
+    (resulting_type, !constraints);;
 
 
 
