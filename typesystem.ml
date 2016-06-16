@@ -102,12 +102,13 @@ let remontee_types rm rb =
     xs;;
 
 
-let resolution_type m b =  
+let resolution_type m b =
     let rm = Array.map Array.copy m in     
     let rb = Array.copy b in 
     match gauss_test rm rb with
         | None -> failwith "Erreur de typage : pas assez de contraintes"
         | Some _ -> 
+                print_matrix m;
             if is_valid_elim rm rb then 
                 remontee_types rm rb
             else
@@ -213,7 +214,9 @@ let calcul_type circuit =
                  |> (fun e -> constraints := e @ !constraints)
     in
     let accum_type = function
-        | Id x          -> base_type x x
+        | Id x          -> let (i,o,r) = compose_type VarType.empty in (* base_type x x *)
+                           add_constraints [ [ (1, i) ; (-1, o) ] ];
+                           r
         | Twist         -> base_type 2 2
         | Join          -> base_type 2 1
         | Fork          -> base_type 1 2

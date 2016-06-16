@@ -287,7 +287,8 @@ let compile_vers_dot circuit =
  ****************************************)
 
 
-let test  = bindi "x" ((vari "x" ||| vari "x") === id 2) === id 2;;
+let test  = bindi "x" ((vari "x" ||| vari "x") === (id 2 ||| id 2)) === id 2;;
+
 let test2 = 
     let bloc1 = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1" in 
 
@@ -314,7 +315,7 @@ let compile file expr =
 
 let () = 
     compile "output.dot" test3;
-    let (tp,constraints) = calcul_type test3 in 
+    let (tp,constraints) = calcul_type test in 
     constraints 
         |> List.map print_equation;
     print_newline ();;
