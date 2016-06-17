@@ -109,7 +109,9 @@ could be to give a basis of the kernel ...
 1. Construct the matrix associated with the equations 
 2. If the number of columns is greater than the number of lines, find a basis of the kernel
 3. Otherwise, do a gaussian elimination on the lines.
-    1. If a null column is found during the gaussian elimination : then find a basis of the kernel (a variable is unused)
+    1. If a null partial column is found during the gaussian elimination the matrix has a kernel and 
+        even if there was a solution, it would fot be unique : find a basis of the kernel. 
+        NEED TO CHECK IF THERE EXIST A SOLUTION !!!!!
     2. Check that every row below the number of columns (bottom part of the matrix) contains zeros, and that the 
        second member does as well.
     3. Resolve (upper resolution) 

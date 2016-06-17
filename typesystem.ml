@@ -193,6 +193,36 @@ let calcul_type circuit =
 
 
 
+
+(****************************** TESTING ****************************)
+
+let test1  = (vari "a" ||| vari "b") === (id 1 ||| id 1) === varo "o";; 
+
+let test2 = 
+    let bloc1 = (id 1 ||| varo "i1") === const "F" 2 1 === varo "o1" in 
+
+    let bloc2 = (vari "i2" ||| id 1) === const "G" 2 1 === varo "o2" in 
+
+    let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
+
+    let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
+    linked_sub === const "FINAL FUN" 2 1;; 
+
+
+let test3 = 
+    let bloc i o v = (vari "c" ||| vari "x" ||| vari i) === const "B" 3 1 === const v 1 1 === varo o in 
+    let b1     = bloc "i1" "o1" "F" in 
+    let b2     = bloc "i2" "o2" "G" in 
+    let b3     = links [("i1","o2");("i2","o1")] ((b1 ||| b2) === (vari "i2" ||| vari "i1" ||| vari "c") === const "B" 3 1) in 
+    let b4     = bindi "x" (bindi "c" b3) in 
+    b4;;
+
+
 let tests = [
+    ("test1", fun () -> print_newline (); let _ = calcul_type test1 in  ()); 
+    (*
+    ("test2", fun () -> let _ = calcul_type test2 in ()); 
+    ("test3", fun () -> let _ = calcul_type test3 in ()); 
+    *)
 ];;
 

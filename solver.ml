@@ -15,6 +15,12 @@ let produit = Array.map2 (fun a b -> a *. b);;
 let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
 
 
+type solution = 
+      Solution   of int array
+    | Negative   of int list
+    | SumOfZeros
+    | Absurd     of (int * int) list * int;;
+
 
 let print_line b = 
     Array.iter (fun i -> print_string " "; print_float i; print_string " ") b;
@@ -59,17 +65,17 @@ let print_incoherence indice m b =
  * Find a pivot for line for column j
  *
  *)
-let pivot_colonne j m =  
-    let k = ref j in 
-    let p = ref m.(j).(j) in 
-    for i = j to Array.length m - 1 do 
+let find_pivot r j m =  
+    let k = ref r in 
+    let p = ref m.(r).(j) in 
+    for i = r+1 to Array.length m - 1 do 
         if m.(i).(j) <> 0. && (!p = 0. || abs_float m.(i).(j) < abs_float !p) then 
             begin
                 k := i;
                 p := m.(i).(j)
             end
     done;
-    if m.(!k).(j) <> 0. then
+    if !p <> 0. then
         Some (!k)
     else
         None;;
@@ -85,15 +91,15 @@ let transpose m =
         ligne) m;
     nm;;
 
-let eliminate j m b =   
-    let p = m.(j).(j) in 
-    for i = j + 1 to Array.length m - 1 do 
+let eliminate r j m b =   
+    let p = m.(r).(j) in 
+    for i = r + 1 to Array.length m - 1 do 
         let v = m.(i).(j) in 
         let c = v /. p in 
         for k = 0 to Array.length m.(j) - 1 do 
-            m.(i).(k) <- m.(i).(k) -. m.(j).(k) *. c 
+            m.(i).(k) <- m.(i).(k) -. m.(r).(k) *. c 
         done;
-        b.(i) <- b.(i) -. b.(j) *. c
+        b.(i) <- b.(i) -. b.(r) *. c
     done;;
 (** 
  *
@@ -103,8 +109,24 @@ let eliminate j m b =
  * alors on dit où elle est
  *
  *)
+
 let gauss_elimination m b = 
-    let j = ref 0 in 
+    let r = ref 0 in 
+    let ligs = Array.length m in 
+    let cols = Array.length m.(0) in 
+    let maxi = min ligs cols in 
+    for j = 0 to maxi - 1 do
+        match find_pivot !r j m with
+            | None -> ()
+            | Some k -> 
+                    permute_lignes !r k m;
+                    permute_lignes !r k b;
+                    eliminate !r j m b;
+                    incr r;
+    done;;
+(*
+let gauss_elimination m b = 
+    let i = ref 0 in 
     let c = ref None in
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
@@ -120,6 +142,7 @@ let gauss_elimination m b =
         incr j
     done;
     !c;;
+*)
 
 (* Using the classical way to find a basis *)
 let find_kernel_basis m = 
@@ -198,43 +221,42 @@ let resolution_type m b =
         List.iter (fun x -> print_line x; print_newline ()) kb;
         failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
     else
-        match gauss_elimination rm rb with
-            | Some j -> failwith ("Not enough constraints ... : variable x_{" ^ string_of_int j ^ "} is arbitrary") 
-                        (* FIXME: say which variable *)
-            | None   -> 
-                if is_valid_elim rm rb then 
-                    let solution = remontee_types rm rb in 
-                    if Array.exists ((>) 0.) solution then 
-                        failwith ("The constraints forces a negative number of inputs/outputs ...")
-                        (* FIXME: say which variable(s) *)
-                    else
-                        solution
+        begin
+            gauss_elimination rm rb; 
+            if is_valid_elim rm rb then 
+                let solution = remontee_types rm rb in 
+                if Array.exists ((>) 0.) solution then 
+                    failwith ("The constraints forces a negative number of inputs/outputs ...")
+                    (* FIXME: say which variable(s) *)
                 else
-                    (* FIXME: say incompatible types *)
-                    let i = List.hd (find_non_valid_elims m b) in 
-                    failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
+                    solution
+            else
+                (* FIXME: say incompatible types *)
+                let i = List.hd (find_non_valid_elims m b) in 
+                failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
+        end;;
 
 
 let tests = [
     ("pivot identity", fun () ->   
         let m = [| [| 1.; 0. |] ; [| 0. ; 1. |] |] in
         let b = [| 0. ; 0. |] in 
-        assert (None = gauss_elimination m b);
+        gauss_elimination m b;
         assert (m =  [| [| 1.; 0. |] ; [| 0. ; 1. |] |]));
     ("pivot simple", fun () ->   
         let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
         let b = [| 0. ; 0. |] in 
-        assert (None = gauss_elimination m b); 
+        gauss_elimination m b; 
         assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
     ("pivot twist", fun () ->   
         let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
         let b = [| 0. ; 0. |] in 
-        assert (None = gauss_elimination m b);
+        gauss_elimination m b;
         assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
     ("pivot special", fun () ->   
         let m = [| [| -1. ; 0. ; 0. |]; [| 0.; 0.;0. |]; [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |] |] in
         let b = [| 0. ; 0. ; 0. ; 0. |] in 
-        assert (None = gauss_elimination m b);
+        gauss_elimination m b;
         assert (m =  [| [| -1. ; 0. ; 0. |];  [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |]; [| 0.; 0.;0. |] |]));
     ("pivot example", fun () ->   
         let m =[|[| -1.;  0. ; 0. ; 1. ; 0. ; 0. |];
@@ -243,7 +265,7 @@ let tests = [
                  [|  0.;  0. ; 1. ; -1.;  0.;  0.|]; 
                  [|  1.;  -1.;  0.;  0.;  0.;  0.|] |] in  
         let b = [| 0. ; 0. ; 0. ; 0. ; 0. |] in 
-        assert (None = gauss_elimination m b); 
+        gauss_elimination m b; 
         assert (m = 
         [|  [|-1.;  0.;  0.;  1. ; 0. ; 0. |]; 
             [| 0.;  1.;  0.;  0. ; 0. ; -1.|];
@@ -253,12 +275,12 @@ let tests = [
     ("pivot second membre", fun () ->   
         let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
         let b = [| 1. ; 1. |] in 
-        assert (None =gauss_elimination m b);
+        gauss_elimination m b;
         assert (b =  [| 1. ; -1. |]));
     ("pivot second membre twist", fun () ->   
         let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
         let b = [| 1. ; 1. |] in 
-        assert (None = gauss_elimination m b);
+        gauss_elimination m b;
         assert (b =  [| 1. ; -1. |]));
     ("is_valid simple true (1)", fun () -> 
         let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in
