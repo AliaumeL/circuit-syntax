@@ -56,7 +56,13 @@ let rec zipWith f l1 l2 = match (l1,l2) with
 let surround p q s =
     if s = "" then "" else p ^ s ^ q;;
 
-
+(**
+ * permute les lignes d'un vecteur
+ *)
+let permute_lignes i j v =   
+    let tmp = v.(i) in 
+    v.(i) <- v.(j);
+    v.(j) <- tmp;;
 
 (******
  *

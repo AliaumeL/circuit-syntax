@@ -1,6 +1,7 @@
 
 open Ast;;
 open Utils;;
+open Solver;;
 
 (* FIXME: 
     * Pour faire le système de type polymorphe 
@@ -38,86 +39,6 @@ let print_matrix m =
     Array.iter (fun l -> 
         Array.iter (fun i -> print_string " "; print_float i; print_string " ") l;
         print_newline ()) m;;
-
-
-let permute_lignes i j v =   
-    let tmp = v.(i) in 
-    v.(i) <- v.(j);
-    v.(j) <- tmp;;
-
-let pivot_colonne j m =  
-    let k = ref j in 
-    for i = j to Array.length m - 1 do 
-        if m.(i).(j) <> 0. && (m.(!k).(j) = 0. || abs_float m.(i).(j) < abs_float m.(!k).(j)) then 
-            k := i
-    done;
-    if m.(!k).(j) <> 0. then
-        Some (!k)
-    else
-        None;;
-
-let eliminate j m b =   
-    let p = m.(j).(j) in 
-    for i = j + 1 to Array.length m - 1 do 
-        let v = m.(i).(j) in 
-        let c = v /. p in 
-        for k = 0 to Array.length m.(j) - 1 do 
-            m.(i).(k) <- m.(i).(k) -. m.(j).(k) *. c 
-        done;
-        b.(i) <- b.(i) -. b.(j) *. c
-    done;;
-
-let produit = Array.map2 (fun a b -> a *. b);;  
-let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
-
-let gauss_test m b = 
-    try
-        for j = 0 to min (Array.length m.(0) - 1) (Array.length m - 1) do 
-            begin
-                match pivot_colonne j m with 
-                    | Some k -> 
-                        permute_lignes j k m;
-                        permute_lignes j k b;
-                        eliminate j m b
-                    | None -> raise Exit;
-            end
-        done;
-        Some true;
-    with Exit -> print_string "pas ok\n"; None;;
-
-let is_valid_elim m b = 
-    let ligs = Array.length m in 
-    let cols = Array.length m.(0) in 
-    range (ligs - cols) 
-        |> List.map (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.) 
-        |> List.for_all (fun x -> x);;
-
-let remontee_types rm rb = 
-    let cols = Array.length rm.(0) in 
-    let ligs = Array.length rm in 
-    let xs   = Array.make cols 0.  in
-    for i = min (cols - 1) (ligs - 1) downto 0 do  
-        xs.(i) <- (rb.(i) -. somme (produit xs rm.(i))) /. rm.(i).(i) 
-    done;
-    xs;;
-
-
-let resolution_type m b =
-    let rm = Array.map Array.copy m in     
-    let rb = Array.copy b in 
-    let ligs = Array.length m in 
-    let cols = Array.length m.(0) in 
-    if ligs < cols then 
-        failwith "Pass assez d'équations pour déterminer un unique type (cas général)"
-    else
-        match gauss_test rm rb with
-            | None -> failwith "Erreur de typage : pas assez de contraintes"
-            | Some _ -> 
-                if is_valid_elim rm rb then 
-                    remontee_types rm rb
-                else
-                    failwith "Erreur de typage : contraintes insatisfaisables";;
-
 
 
 (***** Le système de type ******)
@@ -281,62 +202,5 @@ let calcul_type circuit =
 
 
 let tests = [
-    ("pivot identity", fun () ->   
-        let m = [| [| 1.; 0. |] ; [| 0. ; 1. |] |] in
-        let b = [| 0. ; 0. |] in 
-        gauss_test m b; assert (m =  [| [| 1.; 0. |] ; [| 0. ; 1. |] |]));
-    ("pivot simple", fun () ->   
-        let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
-        let b = [| 0. ; 0. |] in 
-        gauss_test m b; assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
-    ("pivot twist", fun () ->   
-        let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
-        let b = [| 0. ; 0. |] in 
-        gauss_test m b; assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
-    ("pivot special", fun () ->   
-        let m = [| [| -1. ; 0. ; 0. |]; [| 0.; 0.;0. |]; [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |] |] in
-        let b = [| 0. ; 0. ; 0. ; 0. |] in 
-        gauss_test m b; assert (m =  [| [| -1. ; 0. ; 0. |];  [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |]; [| 0.; 0.;0. |] |]));
-    ("pivot example", fun () ->   
-        let m =[|[| -1.;  0. ; 0. ; 1. ; 0. ; 0. |];
-                 [|  0.;  0. ; 1. ; 0. ; -1.;  0.|]; 
-                 [|  0.;  1. ; 0. ; 0. ; 0. ; -1.|]; 
-                 [|  0.;  0. ; 1. ; -1.;  0.;  0.|]; 
-                 [|  1.;  -1.;  0.;  0.;  0.;  0.|] |] in  
-        let b = [| 0. ; 0. ; 0. ; 0. ; 0. |] in 
-        gauss_test m b; assert (m = 
-        [|  [|-1.;  0.;  0.;  1. ; 0. ; 0. |]; 
-            [| 0.;  1.;  0.;  0. ; 0. ; -1.|];
-            [| 0.;  0.;  1.;  0. ; -1.;  0.|];
-            [| 0.;  0.;  0.;  -1.;  1.;  0.|];
-            [| 0.;  0.;  0.;  0. ; 1. ; -1.|] |]));
-    ("pivot second membre", fun () ->   
-        let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
-        let b = [| 1. ; 1. |] in 
-        gauss_test m b; assert (b =  [| 1. ; -1. |]));
-    ("pivot second membre twist", fun () ->   
-        let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
-        let b = [| 1. ; 1. |] in 
-        gauss_test m b; assert (b =  [| 1. ; -1. |]));
-    ("is_valid simple true (1)", fun () -> 
-        let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in
-        let b = [| 1. ; 1. |] in 
-        assert (is_valid_elim m b = true)); 
-    ("is_valid simple true (2)", fun () -> 
-        let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in
-        let b = [| 1. ; 0. |] in 
-        assert (is_valid_elim m b = true)); 
-    ("is_valid simple true (3)", fun () -> 
-        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 0.; 0. |] |] in
-        let b = [| 1. ; 7. ; 0. |] in 
-        assert (is_valid_elim m b = true)); 
-    ("is_valid simple false (1)", fun () -> 
-        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 0.; 0. |] |] in
-        let b = [| 1. ; 7. ; 1. |] in 
-        assert (is_valid_elim m b = false)); 
-    ("is_valid simple false (2)", fun () -> 
-        let m = [| [| 4. ; 5. |]; [| 2.; 1. |]; [| 1.; 0. |] |] in
-        let b = [| 1. ; 7. ; 0. |] in 
-        assert (is_valid_elim m b = false)); 
 ];;
 

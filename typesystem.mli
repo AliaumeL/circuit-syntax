@@ -2,15 +2,6 @@ val construire_matrice :
   ((int * int) list * int) list -> int -> float array array * float array
 val print_line : float array -> unit
 val print_matrix : float array array -> unit
-val permute_lignes : int -> int -> 'a array -> unit
-val pivot_colonne : int -> float array array -> int option
-val eliminate : int -> float array array -> float array -> unit
-val produit : float array -> float array -> float array
-val somme : float array -> float
-val gauss_test : float array array -> float array -> bool option
-val is_valid_elim : float array array -> float array -> bool
-val remontee_types : float array array -> float array -> float array
-val resolution_type : float array array -> float array -> float array
 type v_id = int
 type c_var = Const of int | Var of v_id
 val varid : v_id ref
@@ -68,4 +59,4 @@ val remove_variables :
   (VarType.key * VarType.key) list -> 'a VarType.t -> 'a VarType.t
 val eqn_fam : c_type -> VarType.key -> (int * c_var) list list
 val calcul_type : Ast.circ -> c_type * ((int * v_id) list * int) list
-val tests : (string * (unit -> unit)) list
+val tests : 'a list

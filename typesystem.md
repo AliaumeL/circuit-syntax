@@ -103,3 +103,13 @@ are free, fix one of them ».
 Warning: fixing one of them is not always a direct solution,
 as the kernel can have a large dimension. A solution 
 could be to give a basis of the kernel ... 
+
+# Detailed algorithm
+
+1. Construct the matrix associated with the equations 
+2. If the number of columns is greater than the number of lines, find a basis of the kernel
+3. Otherwise, do a gaussian elimination on the lines.
+    1. If a null column is found during the gaussian elimination : then find a basis of the kernel (a variable is unused)
+    2. Check that every row below the number of columns (bottom part of the matrix) contains zeros, and that the 
+       second member does as well.
+    3. Resolve (upper resolution) 
