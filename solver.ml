@@ -115,15 +115,17 @@ let gauss_elimination m b =
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     let maxi = min ligs cols in 
+    let c    = ref true in 
     for j = 0 to maxi - 1 do
         match find_pivot !r j m with
-            | None -> ()
+            | None -> c := false
             | Some k -> 
                     permute_lignes !r k m;
                     permute_lignes !r k b;
                     eliminate !r j m b;
                     incr r;
-    done;;
+    done;
+    !c;;
 (*
 let gauss_elimination m b = 
     let i = ref 0 in 
@@ -160,10 +162,8 @@ let find_kernel_basis m =
             augmented.(j).(i) <- v 
         ) l) m;
     range cols |> List.iter (fun i -> augmented.(i-1).(ligs + i - 1) <- 1.);
-    print_matrix augmented;
     let _ = gauss_elimination augmented b in 
     print_newline ();
-    print_matrix augmented;
     range cols |> List.map (fun x -> x - 1)
                |> List.filter (fun i -> is_m_column_null i) 
                |> List.map (fun i -> Array.sub augmented.(i) ligs cols );;
@@ -215,48 +215,51 @@ let resolution_type m b =
     let rb = Array.copy b in 
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
-    if ligs < cols then 
-        let kb = find_kernel_basis m in 
-        print_int (List.length kb);
-        List.iter (fun x -> print_line x; print_newline ()) kb;
-        failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
-    else
-        begin
-            gauss_elimination rm rb; 
-            if is_valid_elim rm rb then 
-                let solution = remontee_types rm rb in 
-                if Array.exists ((>) 0.) solution then 
-                    failwith ("The constraints forces a negative number of inputs/outputs ...")
-                    (* FIXME: say which variable(s) *)
-                else
-                    solution
-            else
-                (* FIXME: say incompatible types *)
-                let i = List.hd (find_non_valid_elims m b) in 
-                failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
-        end;;
+    (* FIXME : cette partie est-elle nécessaire ?! *)
+    (* if ligs < cols then 
+            else *)
+        let r = gauss_elimination rm rb in 
+        if is_valid_elim rm rb then 
+            if r = true then 
+                    let solution = remontee_types rm rb in 
+                    if Array.exists ((>) 0.) solution then 
+                        failwith ("The constraints forces a negative number of inputs/outputs ...")
+                        (* FIXME: say which variable(s) *)
+                    else
+                        solution
+             else
+                let kb = find_kernel_basis m in 
+                print_int (List.length kb);
+                List.iter (fun x -> print_line x; print_newline ()) kb;
+                failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
+
+        else
+            (* FIXME: say incompatible types *)
+            let i = List.hd (find_non_valid_elims m b) in 
+            failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
+;;
 
 
 let tests = [
     ("pivot identity", fun () ->   
         let m = [| [| 1.; 0. |] ; [| 0. ; 1. |] |] in
         let b = [| 0. ; 0. |] in 
-        gauss_elimination m b;
+        assert (true = gauss_elimination m b);
         assert (m =  [| [| 1.; 0. |] ; [| 0. ; 1. |] |]));
     ("pivot simple", fun () ->   
         let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
         let b = [| 0. ; 0. |] in 
-        gauss_elimination m b; 
+        assert (true = gauss_elimination m b); 
         assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
     ("pivot twist", fun () ->   
         let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
         let b = [| 0. ; 0. |] in 
-        gauss_elimination m b;
+        assert (true = gauss_elimination m b);
         assert (m =  [| [| 2.; 6. |] ; [| 0. ; -7. |] |]));
     ("pivot special", fun () ->   
         let m = [| [| -1. ; 0. ; 0. |]; [| 0.; 0.;0. |]; [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |] |] in
         let b = [| 0. ; 0. ; 0. ; 0. |] in 
-        gauss_elimination m b;
+        assert (true = gauss_elimination m b);
         assert (m =  [| [| -1. ; 0. ; 0. |];  [| 0.; 1. ; 0. |]; [| 0. ; 0. ; -1. |]; [| 0.; 0.;0. |] |]));
     ("pivot example", fun () ->   
         let m =[|[| -1.;  0. ; 0. ; 1. ; 0. ; 0. |];
@@ -265,22 +268,35 @@ let tests = [
                  [|  0.;  0. ; 1. ; -1.;  0.;  0.|]; 
                  [|  1.;  -1.;  0.;  0.;  0.;  0.|] |] in  
         let b = [| 0. ; 0. ; 0. ; 0. ; 0. |] in 
-        gauss_elimination m b; 
+        assert (true = gauss_elimination m b); 
         assert (m = 
         [|  [|-1.;  0.;  0.;  1. ; 0. ; 0. |]; 
             [| 0.;  1.;  0.;  0. ; 0. ; -1.|];
             [| 0.;  0.;  1.;  0. ; -1.;  0.|];
             [| 0.;  0.;  0.;  -1.;  1.;  0.|];
             [| 0.;  0.;  0.;  0. ; 1. ; -1.|] |]));
+    ("pivot wikipedia", fun () ->   
+        let m = 
+        [|  [| 1.;  2.;  2.; -3. ; 2. ;  3.|]; 
+            [| 2.;  4.;  1.;  0. ; -5.; -6.|];
+            [| 4.;  8.;  5.; -6. ; -1.;  0.|];
+            [|-1.; -2.; -1.;  1. ;  1.;  1.|]|] in 
+        let b = [| 0. ; 0. ; 0. ; 0. ; 0. ; 0. |] in 
+        let _ = gauss_elimination m b in 
+        assert (m = 
+        [|  [| 1.;  2.;  2.; -3. ;  2.;  3.|]; 
+            [| 0.;  0.;  1.; -2. ;  3.;  4.|];
+            [| 0.;  0.;  0.;  0. ;  0.;  0.|];
+            [| 0.;  0.;  0.;  0. ;  0.;  0.|]|]));
     ("pivot second membre", fun () ->   
         let m = [| [| 2.; 6. |] ; [| 4. ; 5. |] |] in
         let b = [| 1. ; 1. |] in 
-        gauss_elimination m b;
+        assert (true =gauss_elimination m b);
         assert (b =  [| 1. ; -1. |]));
     ("pivot second membre twist", fun () ->   
         let m = [| [| 4. ; 5. |]; [| 2.; 6. |] |] in
         let b = [| 1. ; 1. |] in 
-        gauss_elimination m b;
+        assert (true = gauss_elimination m b);
         assert (b =  [| 1. ; -1. |]));
     ("is_valid simple true (1)", fun () -> 
         let m = [| [| 4. ; 5. |]; [| 0.; 0. |] |] in

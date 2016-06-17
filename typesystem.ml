@@ -196,7 +196,7 @@ let calcul_type circuit =
 
 (****************************** TESTING ****************************)
 
-let test1  = (vari "a" ||| vari "b") === (id 1 ||| id 1) === varo "o";; 
+let test1  = (const "G" 2 2 ||| const "F" 1 1) === (id 1 ||| id 1) === varo "o";; 
 
 let test2 = 
     let bloc1 = (id 1 ||| varo "i1") === const "F" 2 1 === varo "o1" in 
