@@ -21,7 +21,6 @@ open Utils;;
  * On fait un pivot de gauss
  *
  *)
-
 let construire_matrice eqns vmax = 
     let n   = List.length eqns in 
     let mat = Array.make_matrix n vmax 0. in  
