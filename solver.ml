@@ -16,7 +16,23 @@ let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
 
 
 
+let print_line b = 
+    Array.iter (fun i -> print_string " "; print_float i; print_string " ") b;
+    print_newline ();;
 
+let print_matrix m = 
+    Array.iter (fun l -> 
+        Array.iter (fun i -> print_string " "; print_float i; print_string " ") l;
+        print_newline ()) m;;
+
+(*
+ * TODO
+ *
+ * Retourner non plus une string, mais les indices des variables 
+ * et leurs valeurs, de manière à produire un affichage 
+ * joli quand on aura accès aux « morceaux » d'expressions 
+ *
+ *)
 let print_incoherence indice m b =   
     let non_null = Array.to_list m.(indice) 
                 |> List.mapi (fun i v -> (i,v)) 
@@ -89,24 +105,47 @@ let eliminate j m b =
  *)
 let gauss_elimination m b = 
     let j = ref 0 in 
-    let c = ref true in 
+    let c = ref None in
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     let maxi = min ligs cols in 
-    while !j < maxi && !c do  
-        match pivot_colonne !j m with 
+    while !j < maxi do  
+        (match pivot_colonne !j m with 
             | Some k -> 
-                permute_lignes !j k m;
-                permute_lignes !j k b;
-                eliminate !j m b;
-                incr j;
+                    permute_lignes !j k m;
+                    permute_lignes !j k b;
+                    eliminate !j m b;
             | None -> 
-                c := false
+                    c := Some !j); 
+        incr j
     done;
-    if !c = false then 
-        Some !j
-    else
-        None;;
+    !c;;
+
+(* Using the classical way to find a basis *)
+let find_kernel_basis m = 
+    let ligs = Array.length m in 
+    let cols = Array.length m.(0) in 
+    let augmented = Array.make_matrix cols (ligs + cols) 0. in  
+    let b    = Array.make cols 0. in  
+    let is_m_column_null i = 
+        range ligs |> List.map (fun x -> x - 1)
+                   |> List.map (fun x -> augmented.(i).(x))
+                   |> List.for_all ((=) 0.)
+    in
+    Array.iteri (fun i l -> 
+        Array.iteri (fun j v -> 
+            augmented.(j).(i) <- v 
+        ) l) m;
+    range cols |> List.iter (fun i -> augmented.(i-1).(ligs + i - 1) <- 1.);
+    print_matrix augmented;
+    let _ = gauss_elimination augmented b in 
+    print_newline ();
+    print_matrix augmented;
+    range cols |> List.map (fun x -> x - 1)
+               |> List.filter (fun i -> is_m_column_null i) 
+               |> List.map (fun i -> Array.sub augmented.(i) ligs cols );;
+                            
+
 (* 
  *
  * Regarde si le bas de la matrice est bien fait .... Sinon 
@@ -154,6 +193,9 @@ let resolution_type m b =
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     if ligs < cols then 
+        let kb = find_kernel_basis m in 
+        print_int (List.length kb);
+        List.iter (fun x -> print_line x; print_newline ()) kb;
         failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
     else
         match gauss_elimination rm rb with

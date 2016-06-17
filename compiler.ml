@@ -287,7 +287,7 @@ let compile_vers_dot circuit =
  ****************************************)
 
 
-let test  = (vari "x" ||| vari "x" ||| id 1) === varo "y" ;;
+let test  = id 1 ||| id 1;; 
 
 let test2 = 
     let bloc1 = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1" in 

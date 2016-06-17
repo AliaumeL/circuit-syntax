@@ -31,14 +31,6 @@ let construire_matrice eqns vmax =
         List.iter (fun (v,j) -> mat.(i).(j) <- float_of_int v) e) eqns;
     (mat,b);;
 
-let print_line b = 
-    Array.iter (fun i -> print_string " "; print_float i; print_string " ") b;
-    print_newline ();;
-
-let print_matrix m = 
-    Array.iter (fun l -> 
-        Array.iter (fun i -> print_string " "; print_float i; print_string " ") l;
-        print_newline ()) m;;
 
 
 (***** Le système de type ******)

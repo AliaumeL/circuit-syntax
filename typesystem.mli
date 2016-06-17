@@ -1,7 +1,5 @@
 val construire_matrice :
   ((int * int) list * int) list -> int -> float array array * float array
-val print_line : float array -> unit
-val print_matrix : float array array -> unit
 type v_id = int
 type c_var = Const of int | Var of v_id
 val varid : v_id ref
