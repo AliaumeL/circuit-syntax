@@ -14,6 +14,31 @@ open Utils;;
 let produit = Array.map2 (fun a b -> a *. b);;  
 let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
 
+
+
+
+let print_incoherence indice m b =   
+    let non_null = Array.to_list m.(indice) 
+                |> List.mapi (fun i v -> (i,v)) 
+                |> List.filter (fun (i,v) -> v <> 0.) 
+    in   
+    let egalite  = b.(indice) in  
+    if non_null = [] then 
+        "Sum of zeros equals to " ^ string_of_float egalite 
+    else
+        let defs = non_null |> List.map (fun (i,v) -> "x_{" ^ string_of_int i ^ "} = " ^ string_of_float v) 
+                            |> String.concat "\n"
+        in
+        let equation = non_null 
+                    |> List.map (fun (i,v) -> string_of_float m.(indice).(i) ^ " * x_{" ^ string_of_int i ^ "}")
+                    |> String.concat " + " 
+                    |> (fun s -> s ^ " = " ^ string_of_float egalite)  
+        in
+        defs ^ "\n AND \n" ^ equation;;
+        
+
+
+
 (*
  * Find a pivot for line for column j
  *
@@ -96,6 +121,12 @@ let is_valid_elim m b =
         |> List.map (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.) 
         |> List.for_all (fun x -> x);;
 
+let find_non_valid_elims m b = 
+    let ligs = Array.length m in 
+    let cols = Array.length m.(0) in 
+    range (ligs - cols) 
+        |> List.filter (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.);;
+
 
 (* 
  * Termine la résolution 
@@ -110,25 +141,37 @@ let remontee_types rm rb =
     done;
     xs;;
 
+
+
+(******
+ *
+ * La grosse fonction qui fait toute la résolution 
+ *
+ *)
 let resolution_type m b =
     let rm = Array.map Array.copy m in     
     let rb = Array.copy b in 
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     if ligs < cols then 
-        failwith "Not enough constraints : add type annotations"
+        failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
     else
         match gauss_elimination rm rb with
             | Some j -> failwith ("Not enough constraints ... : variable x_{" ^ string_of_int j ^ "} is arbitrary") 
+                        (* FIXME: say which variable *)
             | None   -> 
                 if is_valid_elim rm rb then 
                     let solution = remontee_types rm rb in 
                     if Array.exists ((>) 0.) solution then 
                         failwith ("The constraints forces a negative number of inputs/outputs ...")
+                        (* FIXME: say which variable(s) *)
                     else
                         solution
                 else
-                    failwith "Constraints are too strong : cannot resolve";;
+                    (* FIXME: say incompatible types *)
+                    let i = List.hd (find_non_valid_elims m b) in 
+                    failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
+
 
 let tests = [
     ("pivot identity", fun () ->   
