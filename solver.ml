@@ -122,7 +122,11 @@ let resolution_type m b =
             | Some j -> failwith ("Not enough constraints ... : variable x_{" ^ string_of_int j ^ "} is arbitrary") 
             | None   -> 
                 if is_valid_elim rm rb then 
-                    remontee_types rm rb
+                    let solution = remontee_types rm rb in 
+                    if Array.exists ((>) 0.) solution then 
+                        failwith ("The constraints forces a negative number of inputs/outputs ...")
+                    else
+                        solution
                 else
                     failwith "Constraints are too strong : cannot resolve";;
 
