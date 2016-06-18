@@ -64,6 +64,17 @@ let permute_lignes i j v =
     v.(i) <- v.(j);
     v.(j) <- tmp;;
 
+let array_find f a = 
+    let i = ref 0 in 
+    let c = ref None in 
+    let m = Array.length a - 1 in 
+    while !i < m && !c = None do
+        (if f a.(!i) then
+            c := Some (!i, a.(!i)));
+        incr i;
+    done;
+    !c;;
+
 (******
  *
  * TESTS UNITAIRES 

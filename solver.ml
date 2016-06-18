@@ -215,29 +215,22 @@ let resolution_type m b =
     let rb = Array.copy b in 
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
-    (* FIXME : cette partie est-elle nécessaire ?! *)
-    (* if ligs < cols then 
-            else *)
-        let r = gauss_elimination rm rb in 
-        if is_valid_elim rm rb then 
-            if r = true then 
-                    let solution = remontee_types rm rb in 
-                    if Array.exists ((>) 0.) solution then 
-                        failwith ("The constraints forces a negative number of inputs/outputs ...")
-                        (* FIXME: say which variable(s) *)
-                    else
-                        solution
-             else
-                let kb = find_kernel_basis m in 
-                print_int (List.length kb);
-                List.iter (fun x -> print_line x; print_newline ()) kb;
-                failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
+    let r = gauss_elimination rm rb in 
+    if is_valid_elim rm rb then 
+        if r = true then 
+                let solution = remontee_types rm rb in 
+                match array_find ((>) 0.) solution with
+                    | Some (i,j) ->  failwith ("The constraints forces a negative number of inputs/outputs ... x_{"^ string_of_int i ^ "}")
+                    | None       -> solution
+         else
+            let kb = find_kernel_basis m in 
+            List.iter (fun x -> print_line x; print_newline ()) kb;
+            failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
 
-        else
-            (* FIXME: say incompatible types *)
-            let i = List.hd (find_non_valid_elims m b) in 
-            failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b)
-;;
+    else
+        (* FIXME: say incompatible types *)
+        let i = List.hd (find_non_valid_elims m b) in 
+        failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b);;
 
 
 let tests = [
