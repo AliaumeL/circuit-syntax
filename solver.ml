@@ -126,25 +126,6 @@ let gauss_elimination m b =
                     incr r;
     done;
     !c;;
-(*
-let gauss_elimination m b = 
-    let i = ref 0 in 
-    let c = ref None in
-    let ligs = Array.length m in 
-    let cols = Array.length m.(0) in 
-    let maxi = min ligs cols in 
-    while !j < maxi do  
-        (match pivot_colonne !j m with 
-            | Some k -> 
-                    permute_lignes !j k m;
-                    permute_lignes !j k b;
-                    eliminate !j m b;
-            | None -> 
-                    c := Some !j); 
-        incr j
-    done;
-    !c;;
-*)
 
 (* Using the classical way to find a basis *)
 let find_kernel_basis m = 

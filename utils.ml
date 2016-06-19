@@ -85,5 +85,7 @@ let tests = [
               ("range start"   , fun () -> assert (List.hd     (range 10)   = 1));
               ("range end"     , fun () -> assert (List.nth    (range 10) 9 = 10));
               ("surround empty", fun () -> assert ("" = surround "a" "b" ""));
-              ("surround"      , fun () -> assert ("abc" = surround "a" "c" "b"))
+              ("surround"      , fun () -> assert ("abc" = surround "a" "c" "b"));
+              ("array find (1)", fun () -> assert (None  = array_find (fun x -> x) [| false ; false ; false |]));
+              ("array find (2)", fun () -> assert (Some (1,true) = array_find (fun x -> x) [| false ; true ; false |]));
     ];; 
