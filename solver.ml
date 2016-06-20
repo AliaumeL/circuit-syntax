@@ -219,8 +219,9 @@ let resolution_type m b =
                                     end
          else
             let kb = find_kernel_basis m in 
-            List.iter (fun x -> print_line x; print_newline ()) kb;
-            failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
+            let s  = ref [] in  
+            Array.iteri (fun i x -> if x <> 0. then s := i :: !s) (List.hd kb);
+            ManySol !s
     else
         (* FIXME: say incompatible types *)
         let i = List.hd (find_non_valid_elims m b) in 
