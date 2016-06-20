@@ -188,8 +188,11 @@ let calcul_type circuit =
     let resulting_type = foldc accum_type circuit in
     let nvar = newvarid () in 
     let (m,b) = construire_matrice !constraints nvar in 
-    print_line (resolution_type m b);
-    (resulting_type, !constraints);;
+    match resolution_type m b with
+        | Solution _    -> (resulting_type, !constraints)
+        | NoSol         -> failwith "Not typeable"
+        | Negative _    -> failwith "Negative solution"
+        | ManySol liste -> failwith "Many solution ... fix variables" ;;
 
 
 

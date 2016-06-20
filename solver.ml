@@ -15,11 +15,14 @@ let produit = Array.map2 (fun a b -> a *. b);;
 let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
 
 
+(* Le type de solution qu'on peut attendre 
+ * après une résolution des types 
+ *)
 type solution = 
       Solution   of int array
-    | Negative   of int list
-    | SumOfZeros
-    | Absurd     of (int * int) list * int;;
+    | Negative   of int * int 
+    | ManySol    of int list 
+    | NoSol      ;; (* of int * int * int list;; *)
 
 
 let print_line b = 
@@ -30,6 +33,7 @@ let print_matrix m =
     Array.iter (fun l -> 
         Array.iter (fun i -> print_string " "; print_float i; print_string " ") l;
         print_newline ()) m;;
+
 
 (*
  * TODO
@@ -43,7 +47,7 @@ let print_incoherence indice m b =
     let non_null = Array.to_list m.(indice) 
                 |> List.mapi (fun i v -> (i,v)) 
                 |> List.filter (fun (i,v) -> v <> 0.) 
-    in   
+    in
     let egalite  = b.(indice) in  
     if non_null = [] then 
         "Sum of zeros equals to " ^ string_of_float egalite 
@@ -164,6 +168,12 @@ let is_valid_elim m b =
         |> List.map (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.) 
         |> List.for_all (fun x -> x);;
 
+
+(* 
+ * Trouve les numéros de lignes 
+ * tels qu'il y ait une incohérence 
+ * dans la matrice
+ *)
 let find_non_valid_elims m b = 
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
@@ -192,8 +202,8 @@ let remontee_types rm rb =
  *
  *)
 let resolution_type m b =
-    let rm = Array.map Array.copy m in     
-    let rb = Array.copy b in 
+    let rm   = Array.map Array.copy m in     
+    let rb   = Array.copy b in 
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     let r = gauss_elimination rm rb in 
@@ -201,17 +211,24 @@ let resolution_type m b =
         if r = true then 
                 let solution = remontee_types rm rb in 
                 match array_find ((>) 0.) solution with
-                    | Some (i,j) ->  failwith ("The constraints forces a negative number of inputs/outputs ... x_{"^ string_of_int i ^ "}")
-                    | None       -> solution
+                    | Some (i,j) -> Negative (i, int_of_float j) 
+                    | None       -> begin 
+                                        match array_find (fun x -> x <> float_of_int (int_of_float x)) solution with 
+                                           | Some _ -> NoSol  
+                                           | None   -> Solution (Array.map int_of_float solution) 
+                                    end
          else
             let kb = find_kernel_basis m in 
             List.iter (fun x -> print_line x; print_newline ()) kb;
             failwith "Not enough constraints : add type annotations" (* FIXME: find kernel *)
-
     else
         (* FIXME: say incompatible types *)
         let i = List.hd (find_non_valid_elims m b) in 
-        failwith ("Constraints are too strong : cannot resolve\n" ^ print_incoherence i m b);;
+        let j = range ligs |> List.map (fun x -> x - 1)
+                           |> List.filter (fun j -> j < cols && m.(j).(j) <> 0.)
+                           |> List.fold_left max 0
+        in
+        NoSol;; 
 
 
 let tests = [
