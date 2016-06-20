@@ -192,7 +192,7 @@ let calcul_type circuit =
         | Solution _    -> (resulting_type, !constraints)
         | NoSol         -> failwith "Not typeable"
         | Negative _    -> failwith "Negative solution"
-        | ManySol liste -> failwith "Many solution ... fix variables" ;;
+        | ManySol liste -> failwith ("Many solution ... fix variable : " ^ (liste |> List.map string_of_int |> String.concat " or ")) 
 
 
 
