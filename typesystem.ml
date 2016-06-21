@@ -125,15 +125,16 @@ let eqn_fam a x =
 
 (** Le calcul de type le plus simple du monde **)
 let calcul_type circuit = 
+    varid := (-1); (* FIXME : ugly !!!! *)
     let constraints = ref [] in (* list of equations *) 
     let add_constraints l = l 
                  |> make_equations  
                  |> (fun e -> constraints := e @ !constraints)
     in
     let accum_type = function
-        | Id x          -> let (i,o,r) = compose_type VarType.empty in (* base_type x x *)
+        | Id x          -> (* let (i,o,r) = compose_type VarType.empty in (* base_type x x *)
                            add_constraints [ [ (1, i) ; (-1, o) ] ];
-                           r
+                           r *) base_type x x
         | Twist         -> base_type 2 2
         | Join          -> base_type 2 1
         | Fork          -> base_type 1 2
@@ -188,6 +189,8 @@ let calcul_type circuit =
     let resulting_type = foldc accum_type circuit in
     let nvar = newvarid () in 
     let (m,b) = construire_matrice !constraints nvar in 
+    !constraints |> List.iter (fun (s,c) -> List.iter (fun (n,v) -> print_int n; print_string "* x_"; print_int v; print_string " + ") s;
+                                                        print_string " = "; print_int c; print_newline ());
     match resolution_type m b with
         | Solution _    -> (resulting_type, !constraints)
         | NoSol         -> failwith "Not typeable"
@@ -199,18 +202,20 @@ let calcul_type circuit =
 
 (****************************** TESTING ****************************)
 
-let test1  = (const "G" 2 2 ||| const "F" 1 1) === (id 1 ||| id 1) === varo "o";; 
+let test1a = (vari "i2" ||| id 1) === const "G" 2 1 === varo "o2";;
+let test1b = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1";; 
+let test1c = (test1a ||| test1b) === (vari "i3" ||| vari "i4");;
+
 
 let test2 = 
-    let bloc1 = (id 1 ||| varo "i1") === const "F" 2 1 === varo "o1" in 
+    let bloc1 = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1" in 
 
     let bloc2 = (vari "i2" ||| id 1) === const "G" 2 1 === varo "o2" in 
 
     let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
 
     let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
-    linked_sub === const "FINAL FUN" 2 1;; 
-
+    linked_sub;; 
 
 let test3 = 
     let bloc i o v = (vari "c" ||| vari "x" ||| vari i) === const "B" 3 1 === const v 1 1 === varo o in 
@@ -222,10 +227,10 @@ let test3 =
 
 
 let tests = [
-    ("test1", fun () -> print_newline (); let _ = calcul_type test1 in  ()); 
-    (*
-    ("test2", fun () -> let _ = calcul_type test2 in ()); 
-    ("test3", fun () -> let _ = calcul_type test3 in ()); 
-    *)
+    ("test1 a", fun () -> print_newline (); let _ = calcul_type test1a in  ()); 
+    ("test1 b", fun () -> print_newline (); let _ = calcul_type test1b in  ()); 
+    ("test1 c", fun () -> print_newline (); let _ = calcul_type test1c in  ()); 
+    ("test2", fun () -> let _ = calcul_type test2 in ());
+    (* ("test3", fun () -> let _ = calcul_type test3 in ()); *)
 ];;
 

@@ -24,14 +24,14 @@ test: test.pdf
 
 tests: $(OSRC) $(OSRCL) tests.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o tests $(OSRC) tests.ml
+	$(OCAMLCC) -g -o tests $(OSRC) tests.ml
 	./tests
 
 
 examples: $(OSRC) $(OSRCL) examples.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o examples $(OSRC) tests.ml
-	./tests
+	$(OCAMLCC) -o examples $(OSRC) compiler.ml examples.ml
+	./examples
 
 clean:
 	rm *.cmi

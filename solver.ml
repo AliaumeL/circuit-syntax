@@ -178,7 +178,7 @@ let find_non_valid_elims m b =
     let ligs = Array.length m in 
     let cols = Array.length m.(0) in 
     range (ligs - cols) 
-        |> List.filter (fun i -> Array.for_all ((=) 0.) m.(cols + i - 1) && b.(i + cols - 1) = 0.);;
+        |> List.filter (fun i -> b.(i + cols - 1) <> 0.);;
 
 
 (* 
@@ -213,6 +213,7 @@ let resolution_type m b =
                 match array_find ((>) 0.) solution with
                     | Some (i,j) -> Negative (i, int_of_float j) 
                     | None       -> begin 
+                        print_newline ();print_line solution;
                                         match array_find (fun x -> x <> float_of_int (int_of_float x)) solution with 
                                            | Some _ -> NoSol  
                                            | None   -> Solution (Array.map int_of_float solution) 
@@ -224,11 +225,14 @@ let resolution_type m b =
             ManySol !s
     else
         (* FIXME: say incompatible types *)
-        let i = List.hd (find_non_valid_elims m b) in 
+        let i = List.hd (find_non_valid_elims rm rb) in 
         let j = range ligs |> List.map (fun x -> x - 1)
                            |> List.filter (fun j -> j < cols && m.(j).(j) <> 0.)
                            |> List.fold_left max 0
         in
+        print_matrix rm;
+        print_line   rb;
+        print_newline (); print_int i; print_string " ... "; print_int j;
         NoSol;; 
 
 

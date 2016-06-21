@@ -312,8 +312,9 @@ let compile file expr =
     let oc = open_out file in 
     (expr |> compile_vers_dot |> (fun x -> x.expr) |> Dot.addPrelude |> fprintf oc "%s");
     close_out oc;;
-
+(*
 let () = 
     compile "output.dot" test3;
     let (tp,constraints) = calcul_type test in 
     ();;
+*)
