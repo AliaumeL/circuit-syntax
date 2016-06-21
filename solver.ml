@@ -200,6 +200,9 @@ let remontee_types rm rb =
  *
  * La grosse fonction qui fait toute la résolution 
  *
+ * Ré-organiser pour correspondre au 
+ * schéma de décision 
+ *
  *)
 let resolution_type m b =
     let rm   = Array.map Array.copy m in     
@@ -208,7 +211,7 @@ let resolution_type m b =
     let cols = Array.length m.(0) in 
     let r = gauss_elimination rm rb in 
     if is_valid_elim rm rb then 
-        if r = true then 
+        if r = true then (* la solution est unique *)
                 let solution = remontee_types rm rb in 
                 match array_find ((>) 0.) solution with
                     | Some (i,j) -> Negative (i, int_of_float j) 

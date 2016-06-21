@@ -75,6 +75,16 @@ let array_find f a =
     done;
     !c;;
 
+let (<|>) a b = match a with
+    | Some x -> a
+    | None -> b;;
+
+(* Definition alternative 
+let array_find f a = 
+    let g (x,i) y = (x <|> (if f y then Some i else None), i+1) in
+    a |> Array.fold_left g (None,0) |> fst;;
+*)
+
 (******
  *
  * TESTS UNITAIRES 
