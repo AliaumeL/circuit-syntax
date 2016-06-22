@@ -56,7 +56,34 @@ let rec zipWith f l1 l2 = match (l1,l2) with
 let surround p q s =
     if s = "" then "" else p ^ s ^ q;;
 
+(**
+ * permute les lignes d'un vecteur
+ *)
+let permute_lignes i j v =   
+    let tmp = v.(i) in 
+    v.(i) <- v.(j);
+    v.(j) <- tmp;;
 
+let array_find f a = 
+    let i = ref 0 in 
+    let c = ref None in 
+    let m = Array.length a - 1 in 
+    while !i < m && !c = None do
+        (if f a.(!i) then
+            c := Some (!i, a.(!i)));
+        incr i;
+    done;
+    !c;;
+
+let (<|>) a b = match a with
+    | Some x -> a
+    | None -> b;;
+
+(* Definition alternative 
+let array_find f a = 
+    let g (x,i) y = (x <|> (if f y then Some i else None), i+1) in
+    a |> Array.fold_left g (None,0) |> fst;;
+*)
 
 (******
  *
@@ -68,5 +95,7 @@ let tests = [
               ("range start"   , fun () -> assert (List.hd     (range 10)   = 1));
               ("range end"     , fun () -> assert (List.nth    (range 10) 9 = 10));
               ("surround empty", fun () -> assert ("" = surround "a" "b" ""));
-              ("surround"      , fun () -> assert ("abc" = surround "a" "b" "c"))
+              ("surround"      , fun () -> assert ("abc" = surround "a" "c" "b"));
+              ("array find (1)", fun () -> assert (None  = array_find (fun x -> x) [| false ; false ; false |]));
+              ("array find (2)", fun () -> assert (Some (1,true) = array_find (fun x -> x) [| false ; true ; false |]));
     ];; 

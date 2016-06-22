@@ -287,9 +287,7 @@ let compile_vers_dot circuit =
  ****************************************)
 
 
-
-
-let test  = links [("x","y")] (vari "x" === const "F" 1 1  === (f ||| vari "x") === (varo "y" ||| j) === const "G" 1 1);;
+let test  = id 1 ||| id 1;; 
 
 let test2 = 
     let bloc1 = (id 1 ||| vari "i1") === const "F" 2 1 === varo "o1" in 
@@ -299,7 +297,7 @@ let test2 =
     let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
 
     let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
-    trace (linked_sub === const "FINAL FUN" 2 1);; 
+    linked_sub === const "FINAL FUN" 2 1;; 
 
 
 let test3 = 
@@ -314,10 +312,9 @@ let compile file expr =
     let oc = open_out file in 
     (expr |> compile_vers_dot |> (fun x -> x.expr) |> Dot.addPrelude |> fprintf oc "%s");
     close_out oc;;
-
+(*
 let () = 
     compile "output.dot" test3;
-    let tp = calcul_type test3 in 
-    tp.constraints 
-        |> List.map print_equation;
-    print_newline ();;
+    let (tp,constraints) = calcul_type test in 
+    ();;
+*)

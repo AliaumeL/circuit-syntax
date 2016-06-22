@@ -35,5 +35,8 @@ val zipWith   : ('a -> 'b -> 'c) -> 'a list -> 'b list -> 'c list
  *)
 val surround  : string -> string -> string -> string
 
+val array_find : ('a -> bool) -> 'a array -> (int * 'a) option 
+
+val permute_lignes : int -> int -> 'a array -> unit 
 
 val tests : (string * (unit -> unit)) list 

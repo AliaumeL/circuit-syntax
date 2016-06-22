@@ -1,13 +1,13 @@
 
 OCAMLCC=ocamlc
-OSRC=utils.ml ast.ml dot.ml typesystem.ml
+OSRC=utils.ml ast.ml dot.ml solver.ml typesystem.ml
 OSRCL=utils.mli ast.mli dot.mli typesystem.mli
 
 .PHONY: test clean doc
 
-comp: $(OSRC) $(OSRCL)
+comp: $(OSRC) $(OSRCL) compiler.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o comp $(OSRC) compiler.ml
+	$(OCAMLCC) -g -o comp $(OSRC) compiler.ml
 
 test.pdf: comp
 	./comp
@@ -22,16 +22,16 @@ doc: doc/index.html
 test: test.pdf
 	open test.pdf
 
-tests: $(OSRC) $(OSRCL)
+tests: $(OSRC) $(OSRCL) tests.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o tests $(OSRC) tests.ml
+	$(OCAMLCC) -g -o tests $(OSRC) tests.ml
 	./tests
 
 
 examples: $(OSRC) $(OSRCL) examples.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o examples $(OSRC) tests.ml
-	./tests
+	$(OCAMLCC) -o examples $(OSRC) compiler.ml examples.ml
+	./examples
 
 clean:
 	rm *.cmi
