@@ -28,10 +28,11 @@ tests: $(OSRC) $(OSRCL) tests.ml
 	./tests
 
 
-examples: $(OSRC) $(OSRCL) examples.ml
+examples: $(OSRC) $(OSRCL) compiler.ml examples.ml
 	$(OCAMLCC) $(OSRCL)
 	$(OCAMLCC) -o examples $(OSRC) compiler.ml examples.ml
 	./examples
+	dot -Tpdf example6.dot > example6.pdf && open example6.pdf	
 
 clean:
 	rm *.cmi

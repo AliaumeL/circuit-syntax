@@ -110,7 +110,10 @@ let dot_generic_uid n m mods =
  *)
 let dot_point_uid name n m = 
     let mods   = Dot.baseMod
-              |> Dot.mod_label name
+              |> Dot.mod_label name 
+              |> Dot.mod_width 0.02
+              |> Dot.mod_height 0.02
+              |> Dot.mod_fixedsize false
               |> Dot.mod_shape "point"
     in
     dot_generic_uid n m mods;; 
@@ -131,6 +134,13 @@ let dot_variable name n m =
     let k = Variables.singleton name (VarLocs.singleton id) in  
     { expr = s.expr; inputs = s.inputs; outputs = s.outputs; vars = k };; 
 
+let compile_id n = 
+    let pts = range n |> List.map (fun _ -> dot_point "id" 1 1) in 
+    { expr = pts |> List.map (fun x -> x.expr) |> Dot.addDots;
+      inputs  = pts |> List.map (fun x -> List.hd x.inputs);
+      outputs = pts |> List.map (fun x -> List.hd x.outputs);
+      vars    = Variables.empty
+    };;
 
 (**
  * Récupère dans un élément du domaine 
@@ -150,6 +160,9 @@ let compile_bind_i x s =
     let mods   = Dot.baseMod
               |> Dot.mod_label ("BindI " ^ x)  
               |> Dot.mod_style "invisible"
+              |> Dot.mod_width 0.02
+              |> Dot.mod_height 0.02
+              |> Dot.mod_fixedsize false
               |> Dot.mod_shape "point"
     in
     let (bid,binder) = dot_generic_uid 1 0 mods in  
@@ -166,6 +179,9 @@ let compile_bind_o x s =
     let mods   = Dot.baseMod
               |> Dot.mod_label ("BindO " ^ x)  
               |> Dot.mod_shape "point"
+              |> Dot.mod_width 0.02
+              |> Dot.mod_height 0.02
+              |> Dot.mod_fixedsize false
               |> Dot.mod_style "invisible"
     in
     let (bid,binder) = dot_generic_uid 0 1 mods in  
@@ -214,7 +230,7 @@ let compile_link l s =
 let compile_vers_dot circuit =
     let faire_lien (a,b) (c,d) = Dot.link a b c d in 
     let accum_compile = function
-        | Id x          -> dot_basic "Id"     x x
+        | Id x          -> compile_id x 
         | Twist         -> dot_basic "Twist"  2 2 
         | Fork          -> dot_point "Fork"   1 2 
         | Join          -> dot_point "Join"   2 1 
@@ -258,18 +274,22 @@ let compile_vers_dot circuit =
                 }
     in
     let inside = foldc accum_compile circuit in 
-    let mods n = Dot.baseMod 
-             |> Dot.mod_shape "circle"
-             |> Dot.mod_label n
+    (* Pour chaque input, on ajoute un noeud qui va vers cet input *)
+    let liens_input = inside.inputs 
+                   |> List.map (fun (id,p) -> 
+                           let (sid,ss) = dot_point_uid ("IN" ^ string_of_int id) 0 0 in 
+                           Dot.addDots [ ss.expr ; Dot.link sid None id p ])
     in
-    let (sid,ss) = dot_generic_uid 0 0 (mods "IN")  in 
-    let (fid,sf) = dot_generic_uid 0 0 (mods "OUT") in 
-    let liens_input  = inside.inputs  |> List.map (fun (id,p) -> Dot.link sid None id p) in 
-    let liens_output = inside.outputs |> List.map (fun (id,p) -> Dot.link id p fid None) in 
+    (* Idem pour les outputs *)
+    let liens_output = inside.outputs 
+                    |> List.map (fun (id,p) -> 
+                            let (sid,ss) = dot_point_uid ("OUT" ^ string_of_int id) 0 0 in 
+                            Dot.addDots [ ss.expr ; Dot.link id p sid None])
+    in
     { 
-        expr = Dot.addDots ([ss.expr ; inside.expr] @ liens_input @ [ sf.expr] @ liens_output);
-        inputs = inside.inputs;
-        outputs = inside.outputs;
+        expr = Dot.addDots (inside.expr :: liens_input @ liens_output);
+        inputs = [];
+        outputs = []; 
         vars = inside.vars
     };;
 

@@ -22,9 +22,12 @@ val uid : unit -> uid
 
 val emptyMod : node_mod
 val baseMod : node_mod 
-val mod_shape : string -> node_mod -> node_mod
-val mod_label : string -> node_mod -> node_mod 
-val mod_style : string -> node_mod -> node_mod 
+val mod_shape  : string -> node_mod -> node_mod
+val mod_label  : string -> node_mod -> node_mod 
+val mod_style  : string -> node_mod -> node_mod 
+val mod_width  : float -> node_mod -> node_mod 
+val mod_height : float -> node_mod -> node_mod 
+val mod_fixedsize : bool -> node_mod -> node_mod 
 val inputsOutputs : string -> int -> int -> node_mod -> node_mod
 
 

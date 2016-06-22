@@ -52,8 +52,11 @@ let renderMods m = m
     |> String.concat ",";;
 
 let mod_shape x = SM.add "shape" x;;
-let mod_label x = SM.add "label" (surround "\"" "\"" x);;
+let mod_label x = SM.add "label" ("\"" ^ x ^ "\"");;
 let mod_style x = SM.add "style" (surround "\"" "\"" x);;
+let mod_width x = SM.add "width" (string_of_float x);; 
+let mod_height x = SM.add "height" (string_of_float x);; 
+let mod_fixedsize x = SM.add "fixedsize" ("\"" ^ (string_of_bool x) ^ "\"");;
 
 (* 
  * Construit un label associé à un noeud, un port
@@ -92,7 +95,7 @@ let link  = fun i1 x i2 y ->
 
 (* shadowLink : fait un lien avec des pointillés ... *)
 let shadowLink i1 x i2 y = 
-    mkLabel i1 x "out" ^ " -> " ^ mkLabel i2 y "in" ^ " [style=dotted]\n";;  
+    mkLabel i1 x "out" ^ " -> " ^ mkLabel i2 y "in" ^ " \n";; (* " [style=dotted]\n";;  *) 
 
 
 (**
