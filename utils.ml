@@ -8,6 +8,22 @@
  *
  *)
 
+(* split a list in two sublists preserving 
+ * the order of the elements
+ *)
+let split n l = 
+    let rec aux i acc rest = 
+        if i = 0 then
+            (List.rev acc, rest)
+        else
+            begin 
+                match rest with
+                    | []     -> aux 0 acc []
+                    | t :: q -> aux (i-1) (t :: acc) q
+            end
+    in
+    aux n [] l;;
+
 
 (* range n = [1 ... n] *)
 let range n = 

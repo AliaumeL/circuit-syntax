@@ -7,40 +7,8 @@
  *
  *)
 
-let split n l = 
-    let rec aux i acc rest = 
-        if i = 0 then
-            (List.rev acc, rest)
-        else
-            begin 
-                match rest with
-                    | []     -> aux 0 acc []
-                    | t :: q -> aux (i-1) (t :: acc) q
-            end
-    in
-    aux n [] l;;
+open Utils;;
 
-
-(* range n = [1 ... n] *)
-let range n = 
-    let rec aux l i = 
-        if i = 0 then 
-            l 
-        else
-            aux (i :: l) (i - 1)
-    in
-    if n <= 0 then 
-        []
-    else
-        aux [] n;;
-
-(*
- * replicate n e = [e ... e] 
- * length (replicate n e) = n
- *)
-let replicate n e = 
-        range n 
-     |> List.map (fun _ -> e);;
 
 type nid = int;;
 

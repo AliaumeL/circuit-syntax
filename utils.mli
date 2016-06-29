@@ -2,6 +2,10 @@
  * the code of algorithms
  *)
 
+(** Create a pair of lists (l1,l2) such 
+ * that l1 @ l2 = l
+ *)
+val split : int -> 'a list -> ('a list * 'a list)
 
 (** Create a list containing numbers from 1 to n
  *

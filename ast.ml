@@ -50,14 +50,15 @@ let fmap f x = match x with
     | Twist          -> Twist;;
 
 (* Le type de circuit récursif associé *)
-type circ = Fix of circ circuit;; 
+type circ          = Circ  of circ circuit;; 
+type 'a typed_circ = TCirc of ('a typed_circ circuit * 'a) 
 
 (* L'extracteur *)
 let unfix = function 
-    | Fix x -> x;;
+    | Circ x -> x;;
 
 (* Le constricteur *)
-let fix x = Fix x;;
+let fix x = Circ x;;
 
 (* 
  *
@@ -74,18 +75,18 @@ let fix x = Fix x;;
 let rec foldc g c = g (fmap (foldc g) (unfix c));; 
 
 (* Les petites fonctions qui aident bien dans la vie *)
-let (===) a b    = Fix (Seq (a,b));;
-let (|||) a b    = Fix (Par (a,b));;
-let f            = Fix Fork;;
-let j            = Fix Join;;
-let w            = Fix Forget;;
-let b            = Fix Create;;
-let vari x       = Fix (VarI x);;
-let varo x       = Fix (VarO x);;
-let const x y z  = Fix (Const (x,y,z));;
-let id x         = Fix (Id x);;
-let twist        = Fix Twist;;
-let trace a      = Fix (Trace a);;
-let bindi x c    = Fix (BindI (x,c));;
-let bindo x c    = Fix (BindO (x,c));;
-let links l c    = Fix (Links (l,c));;
+let (===) a b    = Circ (Seq (a,b));;
+let (|||) a b    = Circ (Par (a,b));;
+let f            = Circ Fork;;
+let j            = Circ Join;;
+let w            = Circ Forget;;
+let b            = Circ Create;;
+let vari x       = Circ (VarI x);;
+let varo x       = Circ (VarO x);;
+let const x y z  = Circ (Const (x,y,z));;
+let id x         = Circ (Id x);;
+let twist        = Circ Twist;;
+let trace a      = Circ (Trace a);;
+let bindi x c    = Circ (BindI (x,c));;
+let bindo x c    = Circ (BindO (x,c));;
+let links l c    = Circ (Links (l,c));;
