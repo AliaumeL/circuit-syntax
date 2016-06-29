@@ -17,6 +17,15 @@ open Solver;;
     *
     *)
 
+
+(*****
+ *
+ * TODO
+ *
+ * plus de commentaires et en anglais
+ *
+ ******)
+
 (***
  *
  * Construire la matrice représentant 
@@ -58,7 +67,6 @@ let print_equation (l,r) =
     let print_prod (u,v) = string_of_int u ^ "*" ^ print_x v in
     let prods = String.concat " + " (List.map print_prod l) in 
     prods ^ " = " ^ string_of_int r ^ "\n" |> print_string;;
-
 
 (**
  * Transforme une liste de constantes et variables
@@ -142,7 +150,15 @@ let eqn_fam a x =
                                              [ (1, Var o); (-1, Var tmpvaro) ] ])
                  |> List.concat;;
 
-(** Le calcul de type le plus simple du monde **)
+(*** 
+ *
+ *
+ * FIXME, pour l'instant on ne compile pas, 
+ * mais l'idée est là.
+ *
+ * TODO changer les putains de fonctions helper 
+ * du dessus qui sont juste immondes
+ *)
 let calcul_type circuit = 
     varid := (-1); (* FIXME : ugly !!!! *)
     let constraints = ref [] in (* list of equations *) 
@@ -151,39 +167,46 @@ let calcul_type circuit =
                  |> (fun e -> constraints := e @ !constraints)
     in
     let accum_type = function
-        | Id x          -> (* let (i,o,r) = compose_type VarType.empty in (* base_type x x *)
-                           add_constraints [ [ (1, i) ; (-1, o) ] ];
-                           r *) base_type x x
+        | Id x          -> (base_type x x, TCirc (Id x, (Const x, Const x)))  
         | IdPoly        -> let (i,o,r) = compose_type VarType.empty in 
                            add_constraints [ [ (1, i) ; (-1, o) ] ];
-                           r
+                           (r, TCirc (IdPoly, (i,o)))
         | Const (x,y,z) -> base_type y z
         | VarI  y       -> let (c,v) = var_type y 0 1 in 
                            add_constraints c;
-                           v
+                           (v, TCirc (VarI y, (Const 0, Var i)))
         | VarO  y       -> let (c,v) = var_type y 1 0 in 
                            add_constraints c;
-                           v
+                           (v, TCirc (VarO y, (Var i, Const 0)))
         | Par (a,b)     -> 
+                (* TODO seq ne doit pas créer de nouvelles 
+                 * variables si on peut faire le calcul (les deux 
+                 * entrées sont déterminées
+                 *)
                 let (i,o,r) = compose_type (union_vtypes a b) in 
                 let eqn_i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
                 let eqn_o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
                 add_constraints [eqn_i ; eqn_o ];
-                r
+                (r, TCirc (Par ((snd a), (snd b)), (i,o)))
         | Seq (a,b)     -> 
+                (* TODO seq ne doit pas créer de nouvelles 
+                 * variables si on peut faire le calcul (les deux 
+                 * entrées sont déterminées
+                 *)
                 let (i,o,r) = compose_type (union_vtypes a b) in   
                 let eqn_join = [ (1,a.otype) ; (-1,b.itype) ] in
                 let eqn_inpt = [ (1,a.itype) ; (-1, i) ] in 
                 let eqn_opt  = [ (1,b.otype) ; (-1, o) ] in 
                 add_constraints [eqn_join ; eqn_inpt ; eqn_opt ];
-                r
+                (r, TCirc (Seq ((snd a), (snd b)), (i,o)))
         | Links (l,a)   -> 
+                (* TODO links ne doit pas créer de nouvelles variables *)
                 let (i,o,r) = compose_type (remove_variables l a.vtypes) in
                 let eqn_i = [ (1,a.itype) ; (-1,i) ] in
                 let eqn_o = [ (1,a.otype) ; (-1,o) ] in
                 let eqn_fams = l |> List.map (fun (x,y) -> eqn_fam a x @ eqn_fam a y) |> List.concat in
                 add_constraints (eqn_i :: eqn_o :: eqn_fams);
-                r
+                (r, TCirc (Links (l, snd a), (Var i, Var o)))
     in
     let resulting_type = foldc accum_type circuit in
     let nvar = newvarid () in 
