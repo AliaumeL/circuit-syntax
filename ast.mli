@@ -7,14 +7,14 @@ type 'a circuit =
   | Id of int
   | IdPoly
   | Links of (string * string) list * 'a
+
 val fmap : ('a -> 'b) -> 'a circuit -> 'b circuit
 type circ = Circ of circ circuit
 type 'a typed_circ = TCirc of ('a typed_circ circuit * 'a)
-val unfix : circ -> circ circuit
-val fix : circ circuit -> circ
+
 val foldc : ('a circuit -> 'a) -> circ -> 'a
-val uid_var : int ref
-val newvarname : unit -> string
+val foldc_typed : ('a circuit -> 'b -> 'a) -> 'b typed_circ -> 'a
+
 val ( === ) : circ -> circ -> circ
 val ( ||| ) : circ -> circ -> circ
 val vari : string -> circ
@@ -27,5 +27,4 @@ val twist : circ
 val trace : circ -> circ
 val bindi : string -> circ -> circ
 val bindo : string -> circ -> circ
-
 val print_ast : circ -> string

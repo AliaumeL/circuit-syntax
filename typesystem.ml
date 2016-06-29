@@ -136,17 +136,6 @@ let union_vtypes a b =
 let remove_variables l m = 
     List.fold_left (fun x (y,z) -> VarType.remove z (VarType.remove y x)) m l;; 
 
-let eqn_fam a x = 
-    if not (VarType.mem x a.vtypes) then 
-        []
-    else 
-        let tmpvari = newvarid () in  
-        let tmpvaro = newvarid () in  
-        a.vtypes |> VarType.find x 
-                 |> List.map (fun (i,o) -> [ [ (1, Var i); (-1, Var tmpvari) ];
-                                             [ (1, Var o); (-1, Var tmpvaro) ] ])
-                 |> List.concat;;
-
 (** 
  * Get the image of a by 
  * the partial function l
@@ -159,7 +148,7 @@ let eqn_fam a x =
 let imageV ~elem:a ~func:l = 
     l |> List.filter (fun (x,y) -> x = a)
       |> (function []  -> None
-                 | [x] -> Some (snd x));;
+                 | x :: q -> Some (snd x));;
 
 (**
  * Removes duplicates and sorts the list 
@@ -214,7 +203,6 @@ let linking_equations a l =
  * TODO changer le nom de CONST !!!!
  *)
 let calcul_type circuit = 
-    print_string (print_ast circuit);
     varid := (-1); (* FIXME : ugly !!!! *)
     let constraints = ref [] in (* list of equations *) 
     let add_constraints l = l 
@@ -288,11 +276,14 @@ let calcul_type circuit =
     let (resulting_type,annotated) = foldc accum_type circuit in
     let nvar = newvarid () in 
     let (m,b) = construire_matrice !constraints nvar in 
-    (** PRETTY PRINTING OF CONSTRAINTS **)
+    (** PRETTY PRINTING OF CONSTRAINTS 
+    print_string (print_ast circuit);
+    print_newline ();
     !constraints |> List.iter (fun (s,c) -> List.iter (fun (n,v) -> print_int n; print_string "* x_"; print_int v; print_string " + ") s;
                                                         print_string " = "; print_int c; print_newline ());
+                                                        *)
     match resolution_type m b with
-        | Solution _    -> (resulting_type, !constraints)
+        | Solution v    -> (annotated,v) 
         | NoSol         -> failwith "Not typeable"
         | Negative _    -> failwith "Negative solution"
         | ManySol liste -> failwith ("Many solution ... fix variable : " ^ (liste |> List.map string_of_int |> String.concat " or ")) 
@@ -336,13 +327,13 @@ let test6 =
     const "F" 2 2 === twist === const "G" 2 2;; 
 
 let tests = [
-    ("test1 a", fun () -> print_newline (); let _ = calcul_type test1a in  ()); 
-    ("test1 b", fun () -> print_newline (); let _ = calcul_type test1b in  ()); 
-    ("test1 c", fun () -> print_newline (); let _ = calcul_type test1c in  ()); 
-    ("test2", fun () -> let _ = calcul_type test2 in ());
-    ("test3", fun () -> let _ = calcul_type test3 in ());
-    ("test trace", fun () -> let _ = calcul_type test4 in ());
-    ("test bind", fun () -> let _ = calcul_type test5 in ());
-    ("test twist", fun () -> let _ = calcul_type test6 in ());
+    ("test1 a",    fun () -> let _ = calcul_type test1a in ());
+    ("test1 b",    fun () -> let _ = calcul_type test1b in ());
+    ("test1 c",    fun () -> let _ = calcul_type test1c in ());
+    ("test2",      fun () -> let _ = calcul_type test2  in ());
+    ("test3",      fun () -> let _ = calcul_type test3  in ());
+    ("test trace", fun () -> let _ = calcul_type test4  in ());
+    ("test bind",  fun () -> let _ = calcul_type test5  in ());
+    ("test twist", fun () -> let _ = calcul_type test6  in ());
 ];;
 

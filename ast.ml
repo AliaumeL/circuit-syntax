@@ -46,6 +46,12 @@ let unfix = function
 (* Le constricteur *)
 let fix x = Circ x;;
 
+let unfix_typed = function
+    | TCirc x -> x;;
+
+let fix_typed x = TCirc x;;
+
+
 (* 
  *
  * Fix F ---- unfix ----> F (Fix F) 
@@ -59,6 +65,10 @@ let fix x = Circ x;;
  *
  *)
 let rec foldc g c = g (fmap (foldc g) (unfix c));; 
+let rec foldc_typed g c = 
+    let (a,b) = unfix_typed c in 
+    g (fmap (foldc_typed g) a) b;;
+
 
 let uid_var       = ref 0;; 
 let newvarname () = incr uid_var; "v_" ^ string_of_int !uid_var ;;

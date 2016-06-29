@@ -110,8 +110,8 @@ let rec insertV ~merge:f ~key:a ~value:b ~func:l =
  *)
 let imageV ~elem:a ~func:l = 
     l |> List.filter (fun (x,y) -> x = a)
-      |> (function []  -> None
-                 | [x] -> Some (snd x));;
+      |> (function []     -> None
+                 | x :: q -> Some (snd x));;
 
 (** 
  * Get the fiber of b by
@@ -180,9 +180,9 @@ let sequence ~first:p ~second:q =
 let parallel ~top:p ~bottom:q = 
     let mp = maxid p in 
     let mq = maxid q in 
-    if mq < mp then 
+    if mq < mp then
         let np = mapids (fun x -> x + mq) p in  
-        { iports = np.iports @ p.iports                   ;
+        { iports = np.iports @ q.iports                   ;
           oports = np.oports @ q.oports                   ;
           nodes  = np.nodes @ q.nodes                     ;
           edges  = remove_duplicates (np.edges @ q.edges) ;
@@ -203,7 +203,7 @@ let of_option = function
     | None -> failwith "oups, option none"
     | Some x -> x;;
 
-let link ~vars ~g = 
+let link ~vars ~dag:g = 
     let m  = maxid g in 
 
     let vi = vars |> List.map snd |> remove_duplicates in
@@ -274,9 +274,18 @@ let ovar ~name =
         labels = [(1, VarO name)]
     };;
 
+let identity ~number = 
+    {
+        iports = range number |> List.map (fun v -> (v, None));   
+        oports = range number |> List.map (fun v -> (v, None));   
+        nodes  = range number |> List.map (fun v -> (v,0,0));
+        edges  = [];
+        labels = [];
+    };;
 
 
-let example_circuit = link [("b","a")] (sequence (ivar "a") (ovar "b"));; 
+
+
 
 
 (***** COMBINATORS *****)
@@ -292,6 +301,7 @@ let rec sequences = function
     |  l  -> let (l1,l2) = split (List.length l / 2) l in 
              sequence (sequences l1) (sequences l2);;
 
+let example_circuit = link [("a","b");("c","d")] (parallels [ovar "a"; ovar "c"; ivar "d"; ivar "b" ]);;
 
 (***** SOUNDNESS CHECKER *****)
 

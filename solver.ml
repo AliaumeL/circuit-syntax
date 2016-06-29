@@ -219,7 +219,7 @@ let resolution_type m b =
                     match array_find ((>) 0.) solution with
                         | Some (i,j) -> Negative (i, int_of_float j) 
                         | None       -> begin 
-                            print_newline ();print_line solution;
+                            (* DEBUG print_newline ();print_line solution;*)
                                             match array_find (fun x -> x <> float_of_int (int_of_float x)) solution with 
                                                | Some _ -> NoSol  
                                                | None   -> Solution (Array.map int_of_float solution) 
