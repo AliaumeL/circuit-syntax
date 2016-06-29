@@ -19,7 +19,9 @@ open Solver;;
 
 (***
  *
- * On fait un pivot de gauss
+ * Construire la matrice représentant 
+ * le système linéaire d'équations 
+ * de types
  *
  *)
 let construire_matrice eqns vmax = 
@@ -44,12 +46,25 @@ let newvarid () = incr varid; !varid;;
 
 type equation = (int * v_id) list * int;;
 
+
+(** 
+ * DEBUG PURPOSE
+ *
+ * permet d'afficher une équation
+ *
+ *)
 let print_equation (l,r) = 
     let print_x id = "x(" ^ string_of_int id ^ ")" in 
     let print_prod (u,v) = string_of_int u ^ "*" ^ print_x v in
     let prods = String.concat " + " (List.map print_prod l) in 
     prods ^ " = " ^ string_of_int r ^ "\n" |> print_string;;
 
+
+(**
+ * Transforme une liste de constantes et variables
+ * avec des multiplicateurs en une équation 
+ * bien formée
+ *)
 let equation_of_list eqn = 
     let is_var = function 
           Var _ -> true
@@ -66,6 +81,10 @@ let equation_of_list eqn =
     let cst = List.fold_left addV 0 eqn in   
     (vars, - cst);;
 
+(**
+ * Construit une liste d'équations en appliquant
+ * equation_of_list sur chaque sous liste
+ *)
 let make_equations = List.map equation_of_list;; 
 
 module VarType = Map.Make(String);; 
@@ -135,11 +154,9 @@ let calcul_type circuit =
         | Id x          -> (* let (i,o,r) = compose_type VarType.empty in (* base_type x x *)
                            add_constraints [ [ (1, i) ; (-1, o) ] ];
                            r *) base_type x x
-        | Twist         -> base_type 2 2
-        | Join          -> base_type 2 1
-        | Fork          -> base_type 1 2
-        | Forget        -> base_type 1 0
-        | Create        -> base_type 0 1
+        | IdPoly        -> let (i,o,r) = compose_type VarType.empty in 
+                           add_constraints [ [ (1, i) ; (-1, o) ] ];
+                           r
         | Const (x,y,z) -> base_type y z
         | VarI  y       -> let (c,v) = var_type y 0 1 in 
                            add_constraints c;
@@ -159,24 +176,6 @@ let calcul_type circuit =
                 let eqn_inpt = [ (1,a.itype) ; (-1, i) ] in 
                 let eqn_opt  = [ (1,b.otype) ; (-1, o) ] in 
                 add_constraints [eqn_join ; eqn_inpt ; eqn_opt ];
-                r
-        | Trace a       -> 
-                let (i,o,r) = compose_type a.vtypes in   
-                let eqn_i = [ (1,a.itype) ; (-1,i) ; (-1, Const 1)] in
-                let eqn_o = [ (1,a.otype) ; (-1,o) ; (-1, Const 1)] in
-                add_constraints [eqn_i ; eqn_o ];
-                r
-        | BindI (x,a)   -> 
-                let (i,o,r) = compose_type (VarType.remove x a.vtypes) in   
-                let eqn_i = [ (1,a.itype) ; (-1,i) ; (1, Const 1)] in
-                let eqn_o = [ (1,a.otype) ; (-1,o) ] in
-                add_constraints (eqn_i :: eqn_o :: eqn_fam a x);
-                r
-        | BindO (x,a)   -> 
-                let (i,o,r) = compose_type (VarType.remove x a.vtypes) in   
-                let eqn_i = [ (1,a.itype) ; (-1,i) ] in
-                let eqn_o = [ (1,a.otype) ; (-1,o); (1, Const 1) ] in
-                add_constraints (eqn_i :: eqn_o :: eqn_fam a x);
                 r
         | Links (l,a)   -> 
                 let (i,o,r) = compose_type (remove_variables l a.vtypes) in

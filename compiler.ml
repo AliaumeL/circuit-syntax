@@ -239,28 +239,10 @@ let compile_vers_dot circuit =
     let faire_lien (a,b) (c,d) = Dot.link a b c d in 
     let accum_compile = function
         | Id x          -> compile_id x 
-        | Twist         -> compile_twist (*dot_basic "Twist"  2 2 *)
-        | Fork          -> dot_point "Fork"   1 2 
-        | Join          -> dot_point "Join"   2 1 
-        | Create        -> dot_basic "Create" 0 1
-        | Forget        -> dot_basic "Forget" 1 0 
         | Const (x,y,z) -> dot_basic x        y z 
         | VarI x        -> dot_variable x     0 1 
         | VarO x        -> dot_variable x     1 0 
-        | BindI (x,s)   -> compile_bind_i x s |> snd 
-        | BindO (x,s)   -> compile_bind_o x s |> snd 
         | Links (l,s)   -> compile_link l s
-        | Trace s -> 
-                begin
-                    match (s.inputs,s.outputs) with
-                        | (_ , []) -> failwith "erreur de typage"
-                        | ([], _ ) -> failwith "erreur de typage"
-                        | ((id1,p1)::r1, (id2,p2)::r2) -> 
-                                { expr    = Dot.addDot s.expr (Dot.link id2 p2 id1 p1); (* la trace fait l'ordre inverse !! *)
-                                  inputs  = r1;
-                                  outputs = r2;
-                                  vars    = s.vars } 
-                end
         | Par (s1,s2) -> 
                 (* align inputs in parallel composition *)
                 let align_in  =  s1.inputs @ s2.inputs |> List.map fst |> Dot.same_rankdir in 
