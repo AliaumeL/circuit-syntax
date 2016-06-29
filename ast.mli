@@ -24,6 +24,8 @@ val id : int -> circ
 val idpoly : circ
 val links : (string * string) list -> circ -> circ
 val twist : circ
-val trace : 'a -> circ
+val trace : circ -> circ
 val bindi : string -> circ -> circ
 val bindo : string -> circ -> circ
+
+val print_ast : circ -> string

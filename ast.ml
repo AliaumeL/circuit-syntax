@@ -83,7 +83,7 @@ let twist        =
 let trace a      = 
     let x = newvarname () in 
     let y = newvarname () in 
-    links [(x,y)] (((vari y) ||| idpoly) === ((varo x) ||| idpoly));;
+    links [(x,y)] (((vari y) ||| idpoly) === a === ((varo x) ||| idpoly));;
 
 let bindi y c    = 
     let x = newvarname () in 
@@ -92,3 +92,20 @@ let bindi y c    =
 let bindo x c    = 
     let y = newvarname () in 
     links [(x,y)] ((vari y) ||| c);;
+
+
+let print_ast c = 
+    let print_aux = function
+        | Const (x,y,z) -> x
+        | Par (x,y) -> "(" ^ x ^ ") | (" ^ y ^ ")" 
+        | Seq (x,y) -> "(" ^ x ^ ") o (" ^ y ^ ")" 
+        | VarI y    -> ":" ^ y
+        | VarO y    -> y ^ ":"
+        | Id n      -> string_of_int n
+        | IdPoly    -> "Id"
+        | Links (l,x) -> l
+                |> List.map (fun (a,b) -> a ^ ":" ^ b)  
+                |> String.concat " "
+                |> (fun y -> "links " ^ y ^ "." ^ x) 
+    in 
+    foldc print_aux c;;

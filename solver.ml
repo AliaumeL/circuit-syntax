@@ -208,35 +208,38 @@ let resolution_type m b =
     let rm   = Array.map Array.copy m in     
     let rb   = Array.copy b in 
     let ligs = Array.length m in 
-    let cols = Array.length m.(0) in 
-    let r = gauss_elimination rm rb in 
-    if is_valid_elim rm rb then 
-        if r = true then (* la solution est unique *)
-                let solution = remontee_types rm rb in 
-                match array_find ((>) 0.) solution with
-                    | Some (i,j) -> Negative (i, int_of_float j) 
-                    | None       -> begin 
-                        print_newline ();print_line solution;
-                                        match array_find (fun x -> x <> float_of_int (int_of_float x)) solution with 
-                                           | Some _ -> NoSol  
-                                           | None   -> Solution (Array.map int_of_float solution) 
-                                    end
-         else
-            let kb = find_kernel_basis m in 
-            let s  = ref [] in  
-            Array.iteri (fun i x -> if x <> 0. then s := i :: !s) (List.hd kb);
-            ManySol !s
+    if ligs = 0 then 
+        Solution (Array.make 0 0)
     else
-        (* FIXME: say incompatible types *)
-        let i = List.hd (find_non_valid_elims rm rb) in 
-        let j = range ligs |> List.map (fun x -> x - 1)
-                           |> List.filter (fun j -> j < cols && m.(j).(j) <> 0.)
-                           |> List.fold_left max 0
-        in
-        print_matrix rm;
-        print_line   rb;
-        print_newline (); print_int i; print_string " ... "; print_int j;
-        NoSol;; 
+        let cols = Array.length m.(0) in 
+        let r = gauss_elimination rm rb in 
+        if is_valid_elim rm rb then 
+            if r = true then (* la solution est unique *)
+                    let solution = remontee_types rm rb in 
+                    match array_find ((>) 0.) solution with
+                        | Some (i,j) -> Negative (i, int_of_float j) 
+                        | None       -> begin 
+                            print_newline ();print_line solution;
+                                            match array_find (fun x -> x <> float_of_int (int_of_float x)) solution with 
+                                               | Some _ -> NoSol  
+                                               | None   -> Solution (Array.map int_of_float solution) 
+                                        end
+             else
+                let kb = find_kernel_basis m in 
+                let s  = ref [] in  
+                Array.iteri (fun i x -> if x <> 0. then s := i :: !s) (List.hd kb);
+                ManySol !s
+        else
+            (* FIXME: say incompatible types *)
+            let i = List.hd (find_non_valid_elims rm rb) in 
+            let j = range ligs |> List.map (fun x -> x - 1)
+                               |> List.filter (fun j -> j < cols && m.(j).(j) <> 0.)
+                               |> List.fold_left max 0
+            in
+            print_matrix rm;
+            print_line   rb;
+            print_newline (); print_int i; print_string " ... "; print_int j;
+            NoSol;; 
 
 
 let tests = [

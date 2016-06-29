@@ -46,13 +46,19 @@ let construire_matrice eqns vmax =
 
 (***** Le système de type ******)
 
-type v_id   = int;;
-type c_var  = Const of int | Var of v_id;;
 
+type v_id   = int;;                        (** unique identifier for type variable *)
+type c_var  = Const of int | Var of v_id;; (** possible expressions for a type *)
+
+(***
+ *
+ * Variable identifier generation 
+ *
+ *)
 let varid = ref (-1);;
-
 let newvarid () = incr varid; !varid;;
 
+(* Type system equation *)
 type equation = (int * v_id) list * int;;
 
 
@@ -112,26 +118,17 @@ let base_type n m =
       vtypes = VarType.empty
     };;
 
-let var_type nom a b= 
+let var_type nom a b = 
     let ivar = newvarid () in 
     let ovar = newvarid () in  
     let c = [ [ (1,Var ivar); (-1, Const a)];
-                      [ (1,Var ovar); (-1, Const b)]]
+              [ (1,Var ovar); (-1, Const b)]]
     in
-    (c,  
+    (ivar,ovar,c,  
       { itype  = Var ivar;
       otype  = Var ovar; 
       vtypes = VarType.singleton nom [(ivar,ovar)]
       });;
-
-let compose_type types = 
-    let ivar = newvarid () in 
-    let ovar = newvarid () in 
-    (Var ivar, Var ovar, { 
-      itype  = Var ivar;
-      otype  = Var ovar;
-      vtypes = types 
-    });;
 
 let union_vtypes a b = 
     union_vars a.vtypes b.vtypes;;
@@ -150,16 +147,74 @@ let eqn_fam a x =
                                              [ (1, Var o); (-1, Var tmpvaro) ] ])
                  |> List.concat;;
 
+(** 
+ * Get the image of a by 
+ * the partial function l
+ *
+ * returns an option
+ *
+ * Note: could be done in a more efficient fashion
+ * using the ordering
+ *)
+let imageV ~elem:a ~func:l = 
+    l |> List.filter (fun (x,y) -> x = a)
+      |> (function []  -> None
+                 | [x] -> Some (snd x));;
+
+(**
+ * Removes duplicates and sorts the list 
+ * at the same time
+ *)
+let remove_duplicates l = 
+    let remdup (x,q) y = match x with
+        | None   -> (Some y, y :: q)
+        | Some t -> if t = y then (Some t,q) else (Some y, y::q)
+    in
+    l |> List.sort compare 
+      |> List.fold_left remdup (None, [])
+      |> snd;;
+
+let of_option = function 
+    | None -> failwith "oups, option none"
+    | Some x -> x;;
+
+let linking_equations a l = 
+    let vi = l |> List.map snd |> remove_duplicates in (* input variables bounded *) 
+    let vo = l |> List.map fst |> remove_duplicates in (* output variables bounded *)
+
+    let c  = vi |> List.map (fun v -> (v,newvarid ())) in (* node connectors for inputs *) 
+    let d  = vo |> List.map (fun v -> (v,newvarid ())) in (* node connectors for outputs *) 
+
+    let equations_input x = a.vtypes 
+        |> VarType.find x 
+        |> List.map (fun (ivar,ovar) -> [ [ (1, Var ivar) ];
+                                          [ (1, Var ovar); (-1, Var (of_option (imageV x c))) ] ])  
+        |> List.concat
+    in
+
+    let equations_output x = a.vtypes 
+        |> VarType.find x 
+        |> List.map (fun (ivar,ovar) -> [ [ (1, Var ovar) ];
+                                          [ (1, Var ivar); (-1, Var (of_option (imageV x d))) ] ])  
+        |> List.concat
+    in
+
+    let equations_link = l
+        |> List.map (fun (a,b) -> [ (1, Var (of_option (imageV a d))); (-1, Var (of_option (imageV b c)))])
+    in
+
+    (vi |> List.map equations_input |> List.concat) @ (vo |> List.map equations_output |> List.concat) @ equations_link;; 
+
+
 (*** 
- *
- *
- * FIXME, pour l'instant on ne compile pas, 
- * mais l'idée est là.
  *
  * TODO changer les putains de fonctions helper 
  * du dessus qui sont juste immondes
+ *
+ * TODO changer le nom de CONST !!!!
  *)
 let calcul_type circuit = 
+    print_string (print_ast circuit);
     varid := (-1); (* FIXME : ugly !!!! *)
     let constraints = ref [] in (* list of equations *) 
     let add_constraints l = l 
@@ -168,49 +223,72 @@ let calcul_type circuit =
     in
     let accum_type = function
         | Id x          -> (base_type x x, TCirc (Id x, (Const x, Const x)))  
-        | IdPoly        -> let (i,o,r) = compose_type VarType.empty in 
+        | IdPoly        -> 
+                           let i = Var (newvarid ()) in 
+                           let o = Var (newvarid ()) in 
+                           let r = {
+                               itype = i;
+                               otype = o;
+                               vtypes = VarType.empty
+                                   }
+                           in
                            add_constraints [ [ (1, i) ; (-1, o) ] ];
                            (r, TCirc (IdPoly, (i,o)))
-        | Const (x,y,z) -> base_type y z
-        | VarI  y       -> let (c,v) = var_type y 0 1 in 
+        | Const (x,y,z) -> (base_type y z, TCirc (Const (x,y,z), (Const y, Const z)))
+        | VarI  y       -> let (_,o,c,v) = var_type y 0 1 in 
                            add_constraints c;
-                           (v, TCirc (VarI y, (Const 0, Var i)))
-        | VarO  y       -> let (c,v) = var_type y 1 0 in 
+                           (v, TCirc (VarI y, (Const 0, Var o)))
+        | VarO  y       -> let (i,_,c,v) = var_type y 1 0 in 
                            add_constraints c;
                            (v, TCirc (VarO y, (Var i, Const 0)))
-        | Par (a,b)     -> 
+        | Par ((a,annotA),(b,annotB))     -> 
                 (* TODO seq ne doit pas créer de nouvelles 
                  * variables si on peut faire le calcul (les deux 
                  * entrées sont déterminées
                  *)
-                let (i,o,r) = compose_type (union_vtypes a b) in 
+                let i = Var (newvarid ()) in 
+                let o = Var (newvarid ()) in 
+                let r = { 
+                    itype = i;
+                    otype = o;
+                    vtypes = (union_vtypes a b)
+                        } 
+                in   
                 let eqn_i = [ (1,a.itype) ; (1,b.itype) ; (-1, i)] in
                 let eqn_o = [ (1,a.otype) ; (1,b.otype) ; (-1, o)] in  
                 add_constraints [eqn_i ; eqn_o ];
-                (r, TCirc (Par ((snd a), (snd b)), (i,o)))
-        | Seq (a,b)     -> 
+                (r, TCirc (Par (annotA, annotB), (i,o)))
+
+        | Seq ((a,annotA),(b,annotB))     -> 
                 (* TODO seq ne doit pas créer de nouvelles 
                  * variables si on peut faire le calcul (les deux 
                  * entrées sont déterminées
                  *)
-                let (i,o,r) = compose_type (union_vtypes a b) in   
+                let r = { 
+                    itype = a.itype;
+                    otype = b.otype;
+                    vtypes = (union_vtypes a b)
+                        } 
+                in   
                 let eqn_join = [ (1,a.otype) ; (-1,b.itype) ] in
-                let eqn_inpt = [ (1,a.itype) ; (-1, i) ] in 
-                let eqn_opt  = [ (1,b.otype) ; (-1, o) ] in 
-                add_constraints [eqn_join ; eqn_inpt ; eqn_opt ];
-                (r, TCirc (Seq ((snd a), (snd b)), (i,o)))
-        | Links (l,a)   -> 
+                add_constraints [eqn_join]; 
+                (r, TCirc (Seq (annotA, annotB), (a.itype,b.otype)))
+
+        | Links (l,(a,annotA))   -> 
                 (* TODO links ne doit pas créer de nouvelles variables *)
-                let (i,o,r) = compose_type (remove_variables l a.vtypes) in
-                let eqn_i = [ (1,a.itype) ; (-1,i) ] in
-                let eqn_o = [ (1,a.otype) ; (-1,o) ] in
-                let eqn_fams = l |> List.map (fun (x,y) -> eqn_fam a x @ eqn_fam a y) |> List.concat in
-                add_constraints (eqn_i :: eqn_o :: eqn_fams);
-                (r, TCirc (Links (l, snd a), (Var i, Var o)))
+                let r = {
+                    itype = a.itype;
+                    otype = a.otype;
+                    vtypes = remove_variables l a.vtypes 
+                        }
+                in
+                add_constraints (linking_equations a l);
+                (r, TCirc (Links (l, annotA), (a.itype, a.otype)))
     in
-    let resulting_type = foldc accum_type circuit in
+    let (resulting_type,annotated) = foldc accum_type circuit in
     let nvar = newvarid () in 
     let (m,b) = construire_matrice !constraints nvar in 
+    (** PRETTY PRINTING OF CONSTRAINTS **)
     !constraints |> List.iter (fun (s,c) -> List.iter (fun (n,v) -> print_int n; print_string "* x_"; print_int v; print_string " + ") s;
                                                         print_string " = "; print_int c; print_newline ());
     match resolution_type m b with
@@ -236,23 +314,35 @@ let test2 =
 
     let sub = (bloc1 ||| bloc2) === (vari "i3" ||| vari "i4") in 
 
-    let linked_sub = links [("i1","o2"); ("i2","o1"); ("i3", "o1"); ("i4", "o2")] sub in
+    let linked_sub = links [("o2","i1"); ("o1","i2"); ("o1", "i3"); ("o2", "i4")] sub in
     linked_sub;; 
 
 let test3 = 
     let bloc i o v = (vari "c" ||| vari "x" ||| vari i) === const "B" 3 1 === const v 1 1 === varo o in 
     let b1     = bloc "i1" "o1" "F" in 
     let b2     = bloc "i2" "o2" "G" in 
-    let b3     = links [("i1","o2");("i2","o1")] ((b1 ||| b2) === (vari "i2" ||| vari "i1" ||| vari "c") === const "B" 3 1) in 
+    let b3     = links [("o2","i1");("o1","i2")] ((b1 ||| b2) === (vari "i2" ||| vari "i1" ||| vari "c") === const "B" 3 1) in 
     let b4     = bindi "x" (bindi "c" b3) in 
     b4;;
 
+
+let test4 = 
+    trace (const "F" 2 2);;
+
+let test5 = 
+    bindi "x" ((id 1 ||| vari "x") === const "F" 2 1);;
+
+let test6 = 
+    const "F" 2 2 === twist === const "G" 2 2;; 
 
 let tests = [
     ("test1 a", fun () -> print_newline (); let _ = calcul_type test1a in  ()); 
     ("test1 b", fun () -> print_newline (); let _ = calcul_type test1b in  ()); 
     ("test1 c", fun () -> print_newline (); let _ = calcul_type test1c in  ()); 
     ("test2", fun () -> let _ = calcul_type test2 in ());
-    (* ("test3", fun () -> let _ = calcul_type test3 in ()); *)
+    ("test3", fun () -> let _ = calcul_type test3 in ());
+    ("test trace", fun () -> let _ = calcul_type test4 in ());
+    ("test bind", fun () -> let _ = calcul_type test5 in ());
+    ("test twist", fun () -> let _ = calcul_type test6 in ());
 ];;
 
