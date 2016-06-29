@@ -1,26 +1,15 @@
 
 OCAMLCC=ocamlc
-OSRC=utils.ml ast.ml dot.ml solver.ml typesystem.ml
+OSRC=utils.ml ast.ml dot.ml solver.ml typesystem.ml compiler.ml
 OSRCL=utils.mli ast.mli dot.mli typesystem.mli
 
 .PHONY: test clean doc
-
-comp: $(OSRC) $(OSRCL) compiler.ml
-	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -g -o comp $(OSRC) compiler.ml
-
-test.pdf: comp
-	./comp
-	dot -Tpdf output.dot > test.pdf
 
 doc/index.html: $(OSRCL) $(OSRC)
 	ocamldoc -html -d doc $(OSRCL)
 
 doc: doc/index.html
-
-
-test: test.pdf
-	open test.pdf
+	open doc/index.html
 
 tests: $(OSRC) $(OSRCL) tests.ml
 	$(OCAMLCC) $(OSRCL)
@@ -28,11 +17,17 @@ tests: $(OSRC) $(OSRCL) tests.ml
 	./tests
 
 
-examples: $(OSRC) $(OSRCL) compiler.ml examples.ml
+examples: $(OSRC) $(OSRCL) examples.ml
 	$(OCAMLCC) $(OSRCL)
-	$(OCAMLCC) -o examples $(OSRC) compiler.ml examples.ml
+	$(OCAMLCC) -g -o examples $(OSRC) examples.ml
 	./examples
+	dot -Tpdf example1.dot > example1.pdf && open example1.pdf	
+	dot -Tpdf example2.dot > example2.pdf && open example2.pdf	
+	dot -Tpdf example3.dot > example3.pdf && open example3.pdf	
+	dot -Tpdf example4.dot > example4.pdf && open example4.pdf	
+	dot -Tpdf example5.dot > example5.pdf && open example5.pdf	
 	dot -Tpdf example6.dot > example6.pdf && open example6.pdf	
+	dot -Tpdf example7.dot > example7.pdf && open example7.pdf	
 
 clean:
 	rm *.cmi
