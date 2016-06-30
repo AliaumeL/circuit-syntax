@@ -17,7 +17,6 @@ open Solver;;
     *
     *)
 
-
 (*****
  *
  * TODO
@@ -45,7 +44,6 @@ let construire_matrice eqns vmax =
 
 
 (***** Le système de type ******)
-
 
 type v_id   = int;;                        (** unique identifier for type variable *)
 type c_var  = Const of int | Var of v_id;; (** possible expressions for a type *)
@@ -136,53 +134,29 @@ let union_vtypes a b =
 let remove_variables l m = 
     List.fold_left (fun x (y,z) -> VarType.remove z (VarType.remove y x)) m l;; 
 
-(** 
- * Get the image of a by 
- * the partial function l
+
+
+(* 
+ * FIXME plante si on bind des variables 
+ * qui n'existent pas 
  *
- * returns an option
- *
- * Note: could be done in a more efficient fashion
- * using the ordering
  *)
-let imageV ~elem:a ~func:l = 
-    l |> List.filter (fun (x,y) -> x = a)
-      |> (function []  -> None
-                 | x :: q -> Some (snd x));;
-
-(**
- * Removes duplicates and sorts the list 
- * at the same time
- *)
-let remove_duplicates l = 
-    let remdup (x,q) y = match x with
-        | None   -> (Some y, y :: q)
-        | Some t -> if t = y then (Some t,q) else (Some y, y::q)
-    in
-    l |> List.sort compare 
-      |> List.fold_left remdup (None, [])
-      |> snd;;
-
-let of_option = function 
-    | None -> failwith "oups, option none"
-    | Some x -> x;;
-
 let linking_equations a l = 
     let vi = l |> List.map snd |> remove_duplicates in (* input variables bounded *) 
     let vo = l |> List.map fst |> remove_duplicates in (* output variables bounded *)
 
     let c  = vi |> List.map (fun v -> (v,newvarid ())) in (* node connectors for inputs *) 
     let d  = vo |> List.map (fun v -> (v,newvarid ())) in (* node connectors for outputs *) 
-
+    
     let equations_input x = a.vtypes 
-        |> VarType.find x 
+        |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
         |> List.map (fun (ivar,ovar) -> [ [ (1, Var ivar) ];
                                           [ (1, Var ovar); (-1, Var (of_option (imageV x c))) ] ])  
         |> List.concat
     in
 
     let equations_output x = a.vtypes 
-        |> VarType.find x 
+        |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
         |> List.map (fun (ivar,ovar) -> [ [ (1, Var ovar) ];
                                           [ (1, Var ivar); (-1, Var (of_option (imageV x d))) ] ])  
         |> List.concat
