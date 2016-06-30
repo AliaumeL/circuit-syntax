@@ -49,6 +49,8 @@ let (<*>) p q = fun s i ->
                 | Some (y,t) -> Some (x y, t)
         end;;
 
+let (<*>>) p q = pure (fun x y -> y) <*> p <*> q;;
+let (<<*>) p q = pure (fun x y -> x) <*> p <*> q;;
 
 (***** NOW LET'S BEGIN ******)
 
@@ -108,7 +110,7 @@ let parse_int s i = (pure my_int_of_string <*> some_while is_numeric) s i;;
 
 let ign_space s i = match look_char s i with
     | None -> None
-    | Some (c,k) -> if c = ' ' then Some (c,i+1) else Some (' ', i);;
+    | Some (c,k) -> if c = ' ' then Some ((),i+1) else Some ((), i);;
 
 let parse_space = parse_pred (fun c -> c = ' ');;
 
@@ -135,11 +137,11 @@ let rec parse_somme s i =
     in
     (pure cmp <*> parse_produit <*> parse_somme_rec) s i 
 and parse_somme_rec s i = 
-    let cmp _ s p = Some (match p with
+    let cmp s p = Some (match p with
         | None -> s 
         | Some e -> Seq (s,e))
     in
-    ((pure cmp <*> parse_char '+' <*> parse_produit <*> parse_somme_rec) <|> pure None) s i 
+    ((pure cmp <*> (parse_char '+' <*>> parse_produit) <*> parse_somme_rec) <|> pure None) s i 
 and parse_produit s i = 
     let cmp x y = match y with
         | None   -> x 
@@ -147,14 +149,14 @@ and parse_produit s i =
     in
     (pure cmp <*> parse_expr <*> parse_produit_rec) s i 
 and parse_produit_rec s i = 
-    let cmp _ s p = Some (match p with
+    let cmp s p = Some (match p with
         | None -> s 
         | Some e -> Par (s,e))
     in
-    ((pure cmp <*> parse_char '*' <*> parse_expr <*> parse_produit_rec) <|> pure None) s i 
+    ((pure cmp <*> (parse_char '*' <*>> parse_expr) <*> parse_produit_rec) <|> pure None) s i 
 and parse_expr s i = 
    ( (pure (fun x -> Int x) <*> parse_int) <|>
-    (pure (fun _ x _ -> x) <*> parse_char '(' <*> parse_somme <*> parse_char ')' )) s i ;;
+     (ign_space <*>> parse_char '(' <*>> ign_space <*>> parse_somme <<*> ign_space <<*> parse_char ')' <<*> ign_space)) s i ;;
 
 
 
@@ -198,16 +200,18 @@ and parse_vars s i     = (pure (fun _ -> []) <*> parse_char '_') s i
 
 and parse_base s i = 
     (
-     (pure (fun _ x _ -> x) <*> parse_schar '(' <*> parse_parallel <*> parse_schar ')') <|>
+     (pure (fun _ x _ -> x) <*> parse_char '(' <*> parse_parallel <*> parse_char ')') <|>
      (pure (fun x -> Int x) <*> parse_int) <|> 
-     (pure (fun _ _ x  _  y -> Link (x,y)) <*> parse_string "link" <*>
-                                                 parse_space <*> 
-                                                 parse_vars <*> 
-                                                 parse_sstring "for" <*>
-                                                 parse_parallel) <|> 
-     (pure (fun _ x _ _ -> VarO x) <*> ign_space <*> parse_var_name <*> parse_char ':' <*> ign_space) <|> 
-     (pure (fun _ _ x _ -> VarI x) <*> ign_space <*> parse_char ':' <*> parse_var_name <*> ign_space) <|>
-     (pure (fun _ -> Id) <*> parse_sstring "id")
+     (pure (fun x y -> Link (x,y)) <*> (parse_string "link"   <*>>
+                                                 parse_space         <*>> 
+                                                 parse_vars)          <*>
+                                                 (ign_space           <*>>
+                                                 parse_string "for"  <*>>
+                                                 ign_space           <*>>
+                                                 parse_parallel)) <|> 
+     (pure (fun x -> VarO x) <*> (ign_space <*>> parse_var_name <<*> parse_char ':' <<*> ign_space)) <|> 
+     (pure (fun x -> VarI x) <*> (ign_space <*>> parse_char ':' <*>> parse_var_name <<*> ign_space)) <|>
+     (pure (fun _ -> Id) <*> parse_string "id")
      ) s i ;;
     
 
