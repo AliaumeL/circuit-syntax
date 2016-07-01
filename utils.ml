@@ -160,10 +160,38 @@ let remove_duplicates l =
       |> List.fold_left remdup (None, [])
       |> snd;;
 
+(*
+ * Unsafely get the inside of an option
+ *)
 let of_option = function 
     | None -> failwith "oups, option none"
     | Some x -> x;;
 
+(*
+ * Convert a list of options into 
+ * a list without the Nones 
+ *)
+let list_of_options l = 
+    l |> List.filter (fun x -> not (x = None)) 
+      |> List.map of_option;;
+
+(*
+ * Removes the elements of b 
+ * from the list a 
+ *
+ * Warning: does not preserve order !
+ *)
+let remove_list a b = 
+    let l1 = List.sort compare a in 
+    let l2 = List.sort compare b in 
+    let rec aux acc rest1 rest2 = match (rest1,rest2) with
+        | ([],_) -> List.rev acc 
+        | (x,[]) -> List.rev acc @ x 
+        | (x :: q, y :: p) when x = y -> aux acc q rest2
+        | (x :: q, y :: p) when x > y -> aux acc rest1 p 
+        | (x :: q, y :: p) when x < y -> aux (x :: acc) q rest2 
+    in
+    aux [] l1 l2;;
 
 (**
  * Put the list in the right order 

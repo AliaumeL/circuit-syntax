@@ -1,7 +1,7 @@
 
 OCAMLCC=ocamlc
 OSRC=utils.ml ast.ml dot.ml solver.ml typesystem.ml dags.ml compiler.ml
-OSRCL=utils.mli ast.mli dot.mli typesystem.mli
+OSRCL=utils.mli ast.mli dot.mli typesystem.mli dags.mli
 
 .PHONY: test clean doc
 
@@ -16,6 +16,10 @@ tests: $(OSRC) $(OSRCL) tests.ml
 	$(OCAMLCC) -g -o tests $(OSRC) tests.ml
 	./tests
 
+circuits: $(OSRCL) $(ORSC) circuits.ml
+	$(OCAMLCC) $(OSRCL)
+	$(OCAMLCC) -g -o circuits $(OSRC) circuits.ml
+	./circuits
 
 examples: $(OSRC) $(OSRCL) examples.ml
 	$(OCAMLCC) $(OSRCL)

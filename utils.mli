@@ -14,5 +14,7 @@ val imageV : elem:'a -> func:('a * 'b) list -> 'b option
 val fiberV : elem:'a -> func:('b * 'a) list -> 'b list
 val remove_duplicates : 'a list -> 'a list
 val of_option : 'a option -> 'a
+val list_of_options : 'a option list -> 'a list
+val remove_list : 'a list -> 'a list -> 'a list
 val correct_list : ('a * 'b) list -> ('a * 'b) list
 val tests : (string * (unit -> unit)) list
