@@ -6,6 +6,9 @@
  *
  *)
 
+
+
+
 (* ocaml is terrible *)
 let string_of_char c = String.make 1 c;;
 
@@ -23,6 +26,9 @@ let is_numeric c =
 
 let is_alpha c    = is_upper c || is_lower c;;
 let is_alphanum c = is_alpha c || is_numeric c;;
+
+(* ocaml is REALLY terrible *)
+let append x y = x :: y;;
 
 (* little parsing utilities, to make the 
  * all thing simpler to write *)
@@ -108,114 +114,111 @@ let parse_upper s i = (pure string_of_char <*> parse_pred is_upper) s i;;
     
 let parse_int s i = (pure my_int_of_string <*> some_while is_numeric) s i;; 
 
-let ign_space s i = match look_char s i with
-    | None -> None
-    | Some (c,k) -> if c = ' ' then Some ((),i+1) else Some ((), i);;
+let ign_space s i = (parse_char ' ' <|> pure ' ') s i;; 
 
 let parse_space = parse_pred (fun c -> c = ' ');;
 
 
-let parse_schar c s i = (pure (fun _ x _ -> x) <*> ign_space <*> parse_char c <*> ign_space) s i;; 
-let parse_sstring c s i = (pure (fun _ x _ -> x) <*> ign_space <*> parse_string c <*> ign_space) s i;; 
+let parse_schar c s i   = (ign_space <*>> parse_char c <<*> ign_space) s i;; 
+let parse_sstring c s i = (ign_space <*>> parse_string c <<*> ign_space) s i;; 
 
     
 type ast = Par of ast * ast | Seq of ast * ast | Link of ((string * string) list) * ast | Id | Int of int | 
            VarI of string | VarO of string | Circ of string ;;
 
 
-(* 
- * TODO 
+(**
+ * Composing with a second argument 
+ * that is possibly not present 
+ *)
+let compose_with f x y = match y with
+    | None   -> x
+    | Some e -> f x e;;
+
+(**** THE GRAMMAR 
  *
- * why does the parser works 
- * but not the bigger one ?!
+ * Just as defined in the pdf, the rules are exactly the same, a
+ * variable of the grammar is just converted into a 
+ * recursive function that parses (because the grammar is LL)
  *
  *)
-let rec parse_somme s i = 
-    let cmp x y = match y with
-        | None   -> x 
-        | Some e -> Seq (x,e)
-    in
-    (pure cmp <*> parse_produit <*> parse_somme_rec) s i 
-and parse_somme_rec s i = 
-    let cmp s p = Some (match p with
-        | None -> s 
-        | Some e -> Seq (s,e))
-    in
-    ((pure cmp <*> (parse_char '+' <*>> parse_produit) <*> parse_somme_rec) <|> pure None) s i 
-and parse_produit s i = 
-    let cmp x y = match y with
-        | None   -> x 
-        | Some e -> Par (x,e)
-    in
-    (pure cmp <*> parse_expr <*> parse_produit_rec) s i 
-and parse_produit_rec s i = 
-    let cmp s p = Some (match p with
-        | None -> s 
-        | Some e -> Par (s,e))
-    in
-    ((pure cmp <*> (parse_char '*' <*>> parse_expr) <*> parse_produit_rec) <|> pure None) s i 
-and parse_expr s i = 
-   ( (pure (fun x -> Int x) <*> parse_int) <|>
-     (ign_space <*>> parse_char '(' <*>> ign_space <*>> parse_somme <<*> ign_space <<*> parse_char ')' <<*> ign_space)) s i ;;
-
-
-
-
-let rec parse_parallel s i =  
+let rec parse_parallel s i = (* P *) 
     let compose x y = match y with
         | None   -> x
         | Some e -> Par (x,e)
     in
     (pure compose <*> parse_sequential <*> parse_parallel_rec) s i
 
-and parse_sequential s i = 
+and parse_sequential s i = (* S *) 
     let compose x y = match y with
         | None -> x 
         | Some e -> Seq (x,e)
     in 
     (pure compose <*> parse_base <*> parse_sequential_rec) s i 
 
-and parse_parallel_rec s i = 
+and parse_parallel_rec s i = (* P' *)
     let compose _ s p = 
         Some (match p with
                 | None -> s
                 | Some e -> Par (s,e))
     in
-    ((pure compose <*> parse_schar '|' <*> parse_sequential <*> parse_parallel_rec)
-    <|> (pure None)) s i 
+    begin 
+        (pure compose <*> parse_schar '|' <*> parse_sequential <*> parse_parallel_rec) <|>
+        pure None 
+    end s i 
 
-and parse_sequential_rec s i = 
+and parse_sequential_rec s i =  (* S' *)
     let compose _ e s = 
         Some (match s with
                 | None -> e 
                 | Some k -> Seq (e,k))
     in
-    ((pure compose <*> parse_schar '.' <*> parse_base <*> parse_sequential_rec) 
-    <|> (pure None)) s i 
+    begin 
+        (pure compose <*> parse_schar '.' <*> parse_base <*> parse_sequential_rec) <|>
+        pure None
+    end s i
 
-
+(* VAR *)
 and parse_var_name s i = (pure (^) <*> parse_lower <*> many_while is_alphanum) s i
 
-and parse_vars s i     = (pure (fun _ -> []) <*> parse_char '_') s i
+(* VARS *)
+and parse_couple s i = 
+    begin 
+        pure (fun x y -> (x,y)) <*> 
+        (parse_var_name <<*> parse_char ':') <*> 
+        parse_var_name 
+    end s i
 
+and parse_vars s i =
+    (pure append <*> parse_couple <*> (parse_space <*>> parse_vars_rec)) s i 
+
+and parse_vars_rec s i = 
+    begin 
+        (pure append <*> parse_couple <*> (parse_space <*>> parse_vars_rec)) <|>
+        (pure (fun _ -> []) <*> (ign_space <*>> parse_string "for" <<*> parse_space))
+    end s i
+
+
+
+
+(* CIRC *)
+and parse_circ_name s i = (pure (^) <*> parse_upper <*> many_while is_alphanum) s i
+
+(* E *)
 and parse_base s i = 
-    (
-     (pure (fun _ x _ -> x) <*> parse_char '(' <*> parse_parallel <*> parse_char ')') <|>
-     (pure (fun x -> Int x) <*> parse_int) <|> 
-     (pure (fun x y -> Link (x,y)) <*> (parse_string "link"   <*>>
-                                                 parse_space         <*>> 
-                                                 parse_vars)          <*>
-                                                 (ign_space           <*>>
-                                                 parse_string "for"  <*>>
-                                                 ign_space           <*>>
-                                                 parse_parallel)) <|> 
-     (pure (fun x -> VarO x) <*> (ign_space <*>> parse_var_name <<*> parse_char ':' <<*> ign_space)) <|> 
-     (pure (fun x -> VarI x) <*> (ign_space <*>> parse_char ':' <*>> parse_var_name <<*> ign_space)) <|>
-     (pure (fun _ -> Id) <*> parse_string "id")
-     ) s i ;;
+    begin
+        (pure (fun _ x _ -> x)        <*> parse_char '(' <*> parse_parallel <*> parse_char ')')               <|>
+        (pure (fun x -> Int x)        <*> parse_int)                                                          <|>
+        (pure (fun x -> Circ x)       <*> parse_circ_name)                                                    <|>
+        (pure (fun x y -> Link (x,y)) <*> (parse_string "link"          <*>>
+                                           parse_space                  <*>>
+                                           parse_vars)                  <*>
+                                           parse_parallel)                                                    <|>
+        (pure (fun x -> VarO x)       <*> (ign_space <*>> parse_var_name <<*> parse_char ':' <<*> ign_space)) <|>
+        (pure (fun x -> VarI x)       <*> (ign_space <*>> parse_char ':' <*>> parse_var_name <<*> ign_space)) <|>
+        (pure (fun _ -> Id)           <*> parse_string "id")
+    end s i ;;
     
-
-
 let test = "1.(8|9)";;
 
 let () = parse_parallel test 0; print_string "OK";;
