@@ -290,8 +290,12 @@ let map_of_pair_list xys =
   List.fold_left
     (fun map (x, y) -> id_add x y map) id_empty xys
 
+(* this function does not preserve order FIXME *)
 let map_to_name_list dict =
-  id_fold (fun _ x xs -> x :: xs) dict [] 
+    id_fold (fun _ x xs -> x :: xs) dict [] ;;
+
+let map_to_name_list_aliaume (l : int list) (dict : int IntegerDictionary.t) = 
+    List.map (fun x -> id_find x dict) l;;
                
 let map_to_name_pair_list dict =
   id_fold (fun k x xs -> (k, x) :: xs) dict [] 
@@ -508,22 +512,30 @@ let reverse_ptg (t : pTG) : pTG =
   }
 
 (* It's important that the order is kept in the node lists *)
+
+(* MODIFIIED : the order was NOT preserved by the 
+ * function map_to_name_list ... which is unfortunate 
+ * because of the remark above 
+ *)
 let replicate ptg =
   let ins_new  = new_name_map ptg.ins  in
   let outs_new = new_name_map ptg.outs in
   let pre_new  = new_name_map ptg.pre  in
   let main_new = new_name_map ptg.main in
   let post_new = new_name_map ptg.post in
+  (* the total function from the old names 
+   * to the new ones 
+   *)
   let all_new  = ins_new |> id_merge merger_v outs_new
                          |> id_merge merger_v pre_new
                          |> id_merge merger_v main_new
                          |> id_merge merger_v post_new
   in 
-  { ins    = map_to_name_list ins_new;
-    outs   = map_to_name_list outs_new;
-    pre    = map_to_name_list pre_new;
-    main   = map_to_name_list main_new;
-    post   = map_to_name_list post_new;
+  { ins    = map_to_name_list_aliaume ptg.ins  all_new;
+    outs   = map_to_name_list_aliaume ptg.outs all_new;
+    pre    = map_to_name_list_aliaume ptg.pre  all_new;
+    main   = map_to_name_list_aliaume ptg.main all_new;
+    post   = map_to_name_list_aliaume ptg.post all_new;
     labels = refresh_labels ptg.labels all_new;
     edges  = refresh_edges ptg.edges all_new;
     segde  = Some (reverse_edges ptg.edges);
@@ -1009,47 +1021,86 @@ let mk_fork (nodes : (int * (int * int)) list) t =
                (fun e v -> id_add v Fork e)
                t.labels fork_nodes ; }
 
-let unfold_ptg (t:pTG) =
-  let t'    = replicate t in
-  let v1s   = t.pre in
-  let v3s   = t.post in
-  let v2s   = t.main in
-  let is    = t.ins in
-  let os    = t.outs in
-  let v1s'  = t'.pre in
-  let v2s'  = t'.main in
-  let v3s'  = t'.post in
-  let is'   = t'.ins in
-  let os'   = t'.outs in
-  let is''  = new_names (List.length is) in
-  let v3s'' = new_names (List.length v3s) in
-  let osd   = new_names (List.length os) in
-  let v3ds' = new_names (List.length v3s') in
+let unfold_ptg (t1:pTG) =
+  let t2    = replicate t1 in
+    print_newline ();
+  (* Creating new names for the circuit's 
+   * new input nodes 
+   *)
+  let n_inputs = new_names (List.length t1.ins)   in
+
+  (* Creating new names for the circuit's
+   * new global post nodes 
+   *)
+  let n_posts     = new_names (List.length t1.post)  in
+
+  (* Creating new nodes that will be labeled to _|_
+   * used to ignore the output of the first graph t1
+   *)
+  let ignore_outs = new_names (List.length t1.outs)  in
+
+  (* Creating new nodes that will be labeled 
+   * to _|_ used to ignore the output of the 
+   * post nodes from t2
+   *)
+  let ignore_post = new_names (List.length t2.post) in
+
+  (* EDGES *)
+  let ignore_outs_e   = zip t1.outs (List.map (fun x -> [x]) ignore_outs) in 
+  let ignore_post_e   = zip t2.post (List.map (fun x -> [x]) ignore_post) in 
+
+  let remove_feedback = fun e -> List.fold_left (fun e v -> id_remove v e) e (t1.post @ t2.post) in 
+
+  let new_feedback    = zip n_posts (List.map (fun x -> [x]) t1.pre)      in  
+
+
+  let calcul_edges    = id_merge merger_l t1.edges t2.edges
+                     |> remove_feedback 
+                     |> id_merge merger_l (map_of_pair_list ignore_outs_e)
+                     |> id_merge merger_l (map_of_pair_list ignore_post_e)
+                     |> id_merge merger_l (map_of_pair_list new_feedback) 
+  in
+
+  (*
+   * A  first construction of the graph 
+   * without the forking of inputs and of t1.post 
+   *)
   let t_no_forks = 
-  { ins  = is'' ;
-    outs = os' ;
-    pre  = v1s ;
-    post = v3s'' ;
-    main = is @ os @ osd @ v2s @ v3s @ is' @ v2s' @ v3s' @ v3ds' @ v1s' ;
-    edges = (let e = id_merge merger_l t.edges t'.edges in 
-             List.fold_left (fun e v -> id_remove v e) e (v3s @ v3s'))
-            |> id_merge merger_l
-              (map_of_pair_list
-                 (zip os (List.map (fun x -> [x]) osd))) 
-            |> id_merge merger_l
-              (map_of_pair_list
-                 (zip v3s' (List.map (fun x -> [x]) v3ds')))
-            |> id_merge merger_l
-                (map_of_pair_list
-                   (zip v3s'' (List.map (fun x -> [x]) v1s)));
+  { ins  = n_inputs  ; (* the new set of input nodes *)
+    outs = t2.outs   ; (* keep the outs of t2 *) 
+    pre  = t1.pre    ; (* keep the pre of t1 *)
+    post = n_posts   ; (* the new post nodes *)
+    main = ignore_outs 
+                 @ ignore_post 
+                 (* the internal nodes comming from t1 *)
+                 @ t1.ins  
+                 @ t1.outs
+                 @ t1.main 
+                 @ t1.post 
+                 (* the internal nodes comming from t2 *)
+                 @ t2.ins 
+                 @ t2.main 
+                 @ t2.post 
+                 @ t2.pre ;
+    edges = calcul_edges ; 
     segde = None;
-    labels = (let l = id_merge merger_v t.labels t'.labels in
+    labels = (let l = id_merge merger_v t1.labels t2.labels in
               List.fold_left
                 (fun e v -> id_add v Disconnect e)
-                l (osd @ v3ds')) ;
+                l (ignore_outs @ ignore_post)) ;
   } in
-  let t_forks  = mk_fork (zip is'' (zip is is')) t_no_forks in 
-  let t_forks = mk_fork (zip v3s (zip v1s' v3s'')) t_forks in 
+
+  (** forking the inputs **)
+  report "Unfolded-No-forks " t_no_forks;
+  let test_prout = zip n_inputs (zip t1.ins t2.ins) in  
+  List.iter (fun (x,(y,z)) -> print_string "("; print_int x; print_string ","; print_int y; print_string "," ; print_int z; print_string ")") test_prout;
+
+  let t_forks  = mk_fork test_prout t_no_forks in 
+
+  report "Unfolded-One-forks " t_forks;
+  let test_prout = zip t1.post (zip t2.pre n_posts) in  
+  List.iter (fun (x,(y,z)) -> print_string "("; print_int x; print_string ","; print_int y; print_string "," ; print_int z; print_string ")") test_prout;
+  let t_forks  = mk_fork test_prout t_forks in 
   report "Unfolded " t_forks;
   t_forks
 
@@ -1127,15 +1178,15 @@ let mark_and_sweep t =
   let segde = reverse_edges t.edges in
   let reachable = mark segde [] (t.outs) in 
   let t = {
-    ins = List.filter (fun x -> List.mem x reachable) t.ins ;
-    outs = List.filter (fun x -> List.mem x reachable) t.outs ;
-    pre = List.filter (fun x -> List.mem x reachable) t.pre ;
-    post = List.filter (fun x -> List.mem x reachable) t.post ;
-    main = List.filter (fun x -> List.mem x reachable) t.main ;
+    ins   = List.filter (fun x -> List.mem x reachable) t.ins ;
+    outs  = List.filter (fun x -> List.mem x reachable) t.outs ;
+    pre   = List.filter (fun x -> List.mem x reachable) t.pre ;
+    post  = List.filter (fun x -> List.mem x reachable) t.post ;
+    main  = List.filter (fun x -> List.mem x reachable) t.main ;
     edges = id_fold (fun src trg t' ->
         if List.mem src reachable then id_add src trg t' else t')
         t.edges id_empty ;
-    segde = None ;
+    segde  = None ;
     labels = id_fold (fun src trg t' ->
         if List.mem src reachable then id_add src trg t' else t')
         t.labels id_empty ;
@@ -1377,10 +1428,10 @@ let example_expr =
 
 let run =
   let t0 = Sys.time () in 
-  dump_index := 1;
+  dump_index := 2;
   verbose := Verbose;
   (* run_ternary mux "mux" *)
-  run_test (ptg_of_dag example_expr) "test-aliaume" 1;
+  run_test (ptg_of_dag example_expr) "test-aliaume" 6;
   (* run_nullary ((h ** h) $$ bsm) "berry-mendler" 5; *)
   let dt = Sys.time () -. t0 in
   Printf.printf "Running time %f out of which reversing %f.\n" dt !bmre
