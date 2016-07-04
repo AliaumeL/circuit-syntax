@@ -37,7 +37,15 @@ type 'a lidag = {
      *)
     nodes    : (nid * int * int) list; 
     edges    : (port * port) list;
-    labels   : (nid * label) list; 
+    labels   : (nid * label) list;
+
+    (* adding two list to add information
+     * about binding nodes,
+     * only usefull for the conversion to a
+     * PTG
+     *)
+    ibinders : nid list;
+    obinders : nid list;
 };;
 
 (**
@@ -45,7 +53,7 @@ type 'a lidag = {
  * The empty dag
  *
  *)
-let empty_dag = { iports = []; oports = []; nodes = []; edges = []; labels = [] };;
+let empty_dag = { iports = []; oports = []; nodes = []; edges = []; labels = []; ibinders = []; obinders = [] };;
 
 (* 
  * Make an anonymous link between two nodes
@@ -60,11 +68,13 @@ let anonym_link ~start:a ~finish:b = ((a,None), (b,None));;
  * Change the node ids in a consistent way 
  *)
 let mapids f dag = {
-    iports = dag.iports |> List.map (map_port f);
-    oports = dag.oports |> List.map (map_port f);
-    nodes  = dag.nodes  |> List.map (fun (x,y,z) -> (f x, y, z)); 
-    edges  = dag.edges  |> List.map (fun (x,y) -> (map_port f x, map_port f y));
-    labels = dag.labels |> List.map (fun (x,y) -> (f x, y));
+    iports   = dag.iports   |> List.map (map_port f);
+    oports   = dag.oports   |> List.map (map_port f);
+    nodes    = dag.nodes    |> List.map (fun (x,y,z) -> (f x, y, z)); 
+    edges    = dag.edges    |> List.map (fun (x,y) -> (map_port f x, map_port f y));
+    labels   = dag.labels   |> List.map (fun (x,y) -> (f x, y));
+    ibinders = dag.ibinders |> List.map f;
+    obinders = dag.obinders |> List.map f;
 };;
 
 
@@ -77,70 +87,6 @@ let maxid dag = match dag.nodes with
     | [] -> 0
     | (t,_,_) :: q -> t;;
 
-(**
- * Inserting a node in a sorted list 
- * List sorted with the lower numbers at the end 
- *
- * Not tail recursive.
- *
- * @f : the merging function in case of name clash
- * @a : the key
- * @b : the value
- * @l : the assoc list
- *)
-let rec insertV ~merge:f ~key:a ~value:b ~func:l = 
-    match l with
-        | []     -> [(a,b)]
-        | (c,d) :: q -> 
-                if c < a then 
-                    (a,b) :: (c,d) :: q
-                else if c = a then 
-                    (a, f b d) :: q 
-                else
-                    (c,d) :: insertV f a b q;;
-
-(** 
- * Get the image of a by 
- * the partial function l
- *
- * returns an option
- *
- * Note: could be done in a more efficient fashion
- * using the ordering
- *)
-let imageV ~elem:a ~func:l = 
-    l |> List.filter (fun (x,y) -> x = a)
-      |> (function []  -> None
-                 | [x] -> Some (snd x));;
-
-(** 
- * Get the fiber of b by
- * the partiel function l
- *
- * returns a list
- *)
-let fiberV ~elem:b ~func:l = 
-    l |> List.filter (fun (x,y) -> y = b)
-      |> List.map fst;;
-
-(**
- * Removes duplicates and sorts the list 
- * at the same time
- *)
-let remove_duplicates l = 
-    let remdup (x,q) y = match x with
-        | None   -> (Some y, y :: q)
-        | Some t -> if t = y then (Some t,q) else (Some y, y::q)
-    in
-    l |> List.sort compare 
-      |> List.fold_left remdup (None, [])
-      |> snd;;
-
-
-(**
- * Put the list in the right order 
- *)
-let correct_list l = List.sort (fun a b -> compare (fst b) (fst a)) l;; 
 
 (**
  *
@@ -154,20 +100,24 @@ let sequence ~first:p ~second:q =
     if mq < mp then 
         let np = mapids (fun x -> x + mq) p in  
         let new_links = List.combine np.oports q.iports in  
-        { iports = np.iports                                          ;
-          oports = q.oports                                           ;
-          nodes  = np.nodes @ q.nodes                                 ;
-          edges  = remove_duplicates (new_links @ np.edges @ q.edges) ;
-          labels = np.labels @ q.labels                               ;
+        { iports   = np.iports                                          ;
+          oports   = q.oports                                           ;
+          nodes    = np.nodes @ q.nodes                                 ;
+          edges    = remove_duplicates (new_links @ np.edges @ q.edges) ;
+          labels   = np.labels @ q.labels                               ;
+          ibinders = np.ibinders @ q.ibinders                           ;
+          obinders = np.obinders @ q.obinders                           ;
         }
     else
         let nq = mapids (fun x -> x + mp) q in  
         let new_links = List.combine p.oports nq.iports in  
-        { iports = p.iports                                           ;
-          oports = nq.oports                                          ;
-          nodes  = nq.nodes @ p.nodes                                 ;
-          edges  = remove_duplicates (new_links @ nq.edges @ p.edges) ;
-          labels = nq.labels @ p.labels                               ;
+        { iports   = p.iports                                           ;
+          oports   = nq.oports                                          ;
+          nodes    = nq.nodes @ p.nodes                                 ;
+          edges    = remove_duplicates (new_links @ nq.edges @ p.edges) ;
+          labels   = nq.labels @ p.labels                               ;
+          ibinders = nq.ibinders @ p.ibinders                           ;
+          obinders = nq.obinders @ p.obinders                           ;
         };;
 
 
@@ -180,13 +130,15 @@ let sequence ~first:p ~second:q =
 let parallel ~top:p ~bottom:q = 
     let mp = maxid p in 
     let mq = maxid q in 
-    if mq < mp then 
+    if mq < mp then
         let np = mapids (fun x -> x + mq) p in  
-        { iports = np.iports @ p.iports                   ;
+        { iports = np.iports @ q.iports                   ;
           oports = np.oports @ q.oports                   ;
           nodes  = np.nodes @ q.nodes                     ;
           edges  = remove_duplicates (np.edges @ q.edges) ;
           labels = np.labels @ q.labels                   ;
+          ibinders = np.ibinders @ q.ibinders             ;
+          obinders = np.obinders @ q.obinders             ;
         }
     else
         let nq = mapids (fun x -> x + mp) q in  
@@ -195,24 +147,33 @@ let parallel ~top:p ~bottom:q =
           nodes  = nq.nodes @ p.nodes                     ;
           edges  = remove_duplicates (nq.edges @ p.edges) ;
           labels = nq.labels @ p.labels                   ;
+          ibinders = nq.ibinders @ p.ibinders             ;
+          obinders = nq.obinders @ p.obinders             ;
         };;
 
 let (>>=) l f = List.concat (List.map f l);;
 
-let of_option = function 
-    | None -> failwith "oups, option none"
-    | Some x -> x;;
-
-let link ~vars ~g = 
+let link ~vars ~dag:g = 
     let m  = maxid g in 
 
+    (* Input variable _names_ *)
     let vi = vars |> List.map snd |> remove_duplicates in
-    let vo = vars |> List.map fst |> remove_duplicates in 
 
+    (* Output variable _names_ *)
+    let vo = vars |> List.map fst |> remove_duplicates in 
+    
+    (* c : vi -> node_id *)
     let c  = vi |> List.mapi (fun i v -> (v,i + m + 1)) in  
     let ci = List.length c in 
+    (* d : vi -> node_id *)
     let d  = vo |> List.mapi (fun i v -> (v,i + m + ci + 1)) in  
 
+    (* FIXME 
+     * if fiberV x == [] then 
+     * the binding node is just a dangling node ...
+     * 
+     * Need to be seen !
+     *)
     let ei = vi >>= (fun x -> 
                         fiberV (VarI x) g.labels >>= (fun v -> 
                             [anonym_link (of_option (imageV x c)) v]))
@@ -233,12 +194,14 @@ let link ~vars ~g =
     in
     let new_labels = g.labels |> List.filter (fun x -> check_label (snd x)) in    
     {
-        iports = g.iports;
-        oports = g.oports;
-        nodes  = (List.map (fun x -> (snd x, 0, 0)) d) @ 
-                 (List.map (fun x -> (snd x, 0, 0)) c) @ g.nodes;
-        edges  = ei @ eo @ eb @ g.edges;
-        labels = new_labels;
+        iports   = g.iports                                        ;
+        oports   = g.oports                                        ;
+        nodes    = (List.map (fun x -> (snd x, 0, 0)) d) @
+                   (List.map (fun x -> (snd x, 0, 0)) c) @ g.nodes ;
+        edges    = ei @ eo @ eb @ g.edges                          ;
+        labels   = new_labels                                      ;
+        ibinders = List.map snd c @ g.ibinders                     ;
+        obinders = List.map snd d @ g.obinders                     ;
     };;
    
 (* TODO: gestion des ports,
@@ -253,7 +216,9 @@ let constant ~name ~inputs:n ~outputs:m =
         oports = replicate m 1 |> List.mapi (fun i v -> (v, Some (i+1)));
         nodes  = [(1,n,m)];
         edges  = [];
-        labels = [(1, Const name)]
+        labels = [(1, Const name)];
+        ibinders = [];
+        obinders = [];
     };;
 
 let ivar ~name = 
@@ -262,7 +227,9 @@ let ivar ~name =
         oports = [(1,None)];
         nodes  = [(1,0,0)];
         edges  = [];
-        labels = [(1, VarI name)]
+        labels = [(1, VarI name)];
+        ibinders = [];
+        obinders = [];
     };;
 
 let ovar ~name = 
@@ -271,13 +238,21 @@ let ovar ~name =
         oports = [];
         nodes  = [(1,0,0)];
         edges  = [];
-        labels = [(1, VarO name)]
+        labels = [(1, VarO name)];
+        ibinders = [];
+        obinders = [];
     };;
 
-
-
-let example_circuit = link [("b","a")] (sequence (ivar "a") (ovar "b"));; 
-
+let identity ~number = 
+    {
+        iports = range number |> List.map (fun v -> (v, None));   
+        oports = range number |> List.map (fun v -> (v, None));   
+        nodes  = range number |> List.map (fun v -> (v,0,0));
+        edges  = [];
+        labels = [];
+        ibinders = [];
+        obinders = [];
+    };;
 
 (***** COMBINATORS *****)
 let rec parallels = function
@@ -292,6 +267,7 @@ let rec sequences = function
     |  l  -> let (l1,l2) = split (List.length l / 2) l in 
              sequence (sequences l1) (sequences l2);;
 
+let example_circuit = link [("a","b");("c","d")] (parallels [ovar "a"; ovar "c"; ivar "d"; ivar "b" ]);;
 
 (***** SOUNDNESS CHECKER *****)
 

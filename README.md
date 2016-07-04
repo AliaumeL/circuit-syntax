@@ -24,10 +24,10 @@ To run the tests use
 make tests
 ```
 
-To compile and run the examples 
+To compile and run the circuits 
 
 ```
-make examples
+make circuits 
 ```
 
 ## Syntax overview 

@@ -101,6 +101,103 @@ let array_find f a =
     a |> Array.fold_left g (None,0) |> fst;;
 *)
 
+(**
+ * Inserting a node in a sorted list 
+ * List sorted with the lower numbers at the end 
+ *
+ * Not tail recursive.
+ *
+ * @f : the merging function in case of name clash
+ * @a : the key
+ * @b : the value
+ * @l : the assoc list
+ *)
+let rec insertV ~merge:f ~key:a ~value:b ~func:l = 
+    match l with
+        | []     -> [(a,b)]
+        | (c,d) :: q -> 
+                if c < a then 
+                    (a,b) :: (c,d) :: q
+                else if c = a then 
+                    (a, f b d) :: q 
+                else
+                    (c,d) :: insertV f a b q;;
+
+(** 
+ * Get the image of a by 
+ * the partial function l
+ *
+ * returns an option
+ *
+ * Note: could be done in a more efficient fashion
+ * using the ordering
+ *)
+let imageV ~elem:a ~func:l = 
+    l |> List.filter (fun (x,y) -> x = a)
+      |> (function []     -> None
+                 | x :: q -> Some (snd x));;
+
+(** 
+ * Get the fiber of b by
+ * the partiel function l
+ *
+ * returns a list
+ *)
+let fiberV ~elem:b ~func:l = 
+    l |> List.filter (fun (x,y) -> y = b)
+      |> List.map fst;;
+
+(**
+ * Removes duplicates and sorts the list 
+ * at the same time
+ *)
+let remove_duplicates l = 
+    let remdup (x,q) y = match x with
+        | None   -> (Some y, y :: q)
+        | Some t -> if t = y then (Some t,q) else (Some y, y::q)
+    in
+    l |> List.sort compare 
+      |> List.fold_left remdup (None, [])
+      |> snd;;
+
+(*
+ * Unsafely get the inside of an option
+ *)
+let of_option = function 
+    | None -> failwith "oups, option none"
+    | Some x -> x;;
+
+(*
+ * Convert a list of options into 
+ * a list without the Nones 
+ *)
+let list_of_options l = 
+    l |> List.filter (fun x -> not (x = None)) 
+      |> List.map of_option;;
+
+(*
+ * Removes the elements of b 
+ * from the list a 
+ *
+ * Warning: does not preserve order !
+ *)
+let remove_list a b = 
+    let l1 = List.sort compare a in 
+    let l2 = List.sort compare b in 
+    let rec aux acc rest1 rest2 = match (rest1,rest2) with
+        | ([],_) -> List.rev acc 
+        | (x,[]) -> List.rev acc @ x 
+        | (x :: q, y :: p) when x = y -> aux acc q rest2
+        | (x :: q, y :: p) when x > y -> aux acc rest1 p 
+        | (x :: q, y :: p) when x < y -> aux (x :: acc) q rest2 
+    in
+    aux [] l1 l2;;
+
+(**
+ * Put the list in the right order 
+ *)
+let correct_list l = List.sort (fun a b -> compare (fst b) (fst a)) l;; 
+
 (******
  *
  * TESTS UNITAIRES 
