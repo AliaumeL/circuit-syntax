@@ -36,5 +36,3 @@ examples: $(OSRC) $(OSRCL) examples.ml
 clean:
 	rm *.cmi
 	rm *.cmo
-	rm *.html
-	rm *.css

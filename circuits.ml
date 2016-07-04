@@ -678,7 +678,7 @@ let rec ptg_of_diag = function
     let t = { ptg with ins   = List.tl ptg.ins;
                        outs  = List.tl ptg.outs;
                        pre   = (List.hd ptg.ins) :: ptg.pre;
-                       pos t = (List.hd ptg.outs) :: ptg.post;
+                       post  = (List.hd ptg.outs) :: ptg.post;
                        edges = id_add
                            (List.hd ptg.outs) [List.hd ptg.ins]
                            ptg.edges; } in t
