@@ -8,23 +8,34 @@
 
 (**
  *  Remove consecutive 
- *  spaces in a string 
+ *  spaces in a string (idem with 
+ *  newlines)
  *)
 let remove_spaces s = 
     let buf = Buffer.create (String.length s) in 
     let sp  = ref false in
+    let nl  = ref false in 
     for i = 0 to String.length s - 1 do
-        if s.[i] = ' ' || s.[i] = '\t' then
-            begin
-                (if not !sp then
-                    Buffer.add_char buf ' ');
-                sp := true
-            end
-        else
-            begin 
-                Buffer.add_char buf s.[i];
-                sp := false
-            end
+        match s.[i] with
+            | ' ' | '\t' -> 
+                    begin 
+                        (if not !sp then 
+                            Buffer.add_char buf ' ');
+                        sp := true;
+                    end
+            | '\n' -> 
+                    begin 
+                        (if not !nl then 
+                            Buffer.add_char buf '\n');
+                        nl := true;
+                        sp := true
+                    end
+            | _    -> 
+                    begin 
+                        Buffer.add_char buf s.[i];
+                        sp := false;
+                        nl := false;
+                    end
     done;
     Buffer.contents buf;;
 
@@ -72,6 +83,7 @@ let interpret_seq str =
             begin
                 (match !p with
                     | [] -> Buffer.add_char buf ' '
+                    | END :: q -> failwith "impossible case"
                     | SEQ :: q -> Buffer.add_string buf ").("
                     | PAR :: q -> Buffer.add_string buf ")|(");
                 w := false
