@@ -17,19 +17,14 @@ open Solver;;
     *
     *)
 
-(*****
- *
- * TODO
- *
- * plus de commentaires et en anglais
- *
- ******)
-
 (***
  *
- * Construire la matrice représentant 
- * le système linéaire d'équations 
- * de types
+ * Build the matrix that represents 
+ * the linear system of type inference
+ * equations
+ *
+ * @eqns : a list of equations
+ * @vmax : the number of variables
  *
  *)
 let construire_matrice eqns vmax = 
@@ -148,18 +143,24 @@ let linking_equations a l =
     let c  = vi |> List.map (fun v -> (v,newvarid ())) in (* node connectors for inputs *) 
     let d  = vo |> List.map (fun v -> (v,newvarid ())) in (* node connectors for outputs *) 
     
-    let equations_input x = a.vtypes 
-        |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
-        |> List.map (fun (ivar,ovar) -> [ [ (1, Var ivar) ];
-                                          [ (1, Var ovar); (-1, Var (of_option (imageV x c))) ] ])  
-        |> List.concat
+    let equations_input x = 
+        try 
+            a.vtypes |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
+                     |> List.map (fun (ivar,ovar) -> [ [ (1, Var ivar) ];
+                                                       [ (1, Var ovar); (-1, Var (of_option (imageV x c))) ] ])  
+                     |> List.concat
+        with
+            Not_found -> []
     in
 
-    let equations_output x = a.vtypes 
-        |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
-        |> List.map (fun (ivar,ovar) -> [ [ (1, Var ovar) ];
-                                          [ (1, Var ivar); (-1, Var (of_option (imageV x d))) ] ])  
-        |> List.concat
+    let equations_output x = 
+        try
+            a.vtypes |> VarType.find x  (* FIXME plante si x n'est pas une variable utilisée *)
+                     |> List.map (fun (ivar,ovar) -> [ [ (1, Var ovar) ];
+                                                       [ (1, Var ivar); (-1, Var (of_option (imageV x d))) ] ])  
+                     |> List.concat
+        with
+            Not_found -> []
     in
 
     let equations_link = l
@@ -170,11 +171,12 @@ let linking_equations a l =
 
 
 (*** 
+ * Function that calculates 
+ * the type equations and then uses 
+ * the Solver module to have an answer
+ * and interpret it as a type error or
+ * a type inference
  *
- * TODO changer les putains de fonctions helper 
- * du dessus qui sont juste immondes
- *
- * TODO changer le nom de CONST !!!!
  *)
 let calcul_type circuit = 
     varid := (-1); (* FIXME : ugly !!!! *)
@@ -204,10 +206,6 @@ let calcul_type circuit =
                            add_constraints c;
                            (v, TCirc (VarO y, (Var i, Const 0)))
         | Par ((a,annotA),(b,annotB))     -> 
-                (* TODO seq ne doit pas créer de nouvelles 
-                 * variables si on peut faire le calcul (les deux 
-                 * entrées sont déterminées
-                 *)
                 let i = Var (newvarid ()) in 
                 let o = Var (newvarid ()) in 
                 let r = { 
@@ -222,10 +220,6 @@ let calcul_type circuit =
                 (r, TCirc (Par (annotA, annotB), (i,o)))
 
         | Seq ((a,annotA),(b,annotB))     -> 
-                (* TODO seq ne doit pas créer de nouvelles 
-                 * variables si on peut faire le calcul (les deux 
-                 * entrées sont déterminées
-                 *)
                 let r = { 
                     itype = a.itype;
                     otype = b.otype;
@@ -237,7 +231,6 @@ let calcul_type circuit =
                 (r, TCirc (Seq (annotA, annotB), (a.itype,b.otype)))
 
         | Links (l,(a,annotA))   -> 
-                (* TODO links ne doit pas créer de nouvelles variables *)
                 let r = {
                     itype = a.itype;
                     otype = a.otype;
@@ -247,15 +240,10 @@ let calcul_type circuit =
                 add_constraints (linking_equations a l);
                 (r, TCirc (Links (l, annotA), (a.itype, a.otype)))
     in
+    (** CONSTRUCTION, RESOLUTION and INTERPRETATION **)
     let (resulting_type,annotated) = foldc accum_type circuit in
     let nvar = newvarid () in 
     let (m,b) = construire_matrice !constraints nvar in 
-    (** PRETTY PRINTING OF CONSTRAINTS 
-    print_string (print_ast circuit);
-    print_newline ();
-    !constraints |> List.iter (fun (s,c) -> List.iter (fun (n,v) -> print_int n; print_string "* x_"; print_int v; print_string " + ") s;
-                                                        print_string " = "; print_int c; print_newline ());
-                                                        *)
     match resolution_type m b with
         | Solution v    -> (annotated,v) 
         | NoSol         -> failwith "Not typeable"
