@@ -258,28 +258,32 @@ let id_find' key dict = try
     Some (id_find key dict)
   with _ -> None
 
-let id_empty = IntegerDictionary.empty
-let id_add  = IntegerDictionary.add
-let id_map = IntegerDictionary.map
-let id_fold = IntegerDictionary.fold 
-let id_merge = IntegerDictionary.merge 
-let id_remove = IntegerDictionary.remove
-let id_mem = IntegerDictionary.mem
+
+(** FUNCTION aliases for integer dictionary **)
+let id_empty     = IntegerDictionary.empty
+let id_add       = IntegerDictionary.add
+let id_map       = IntegerDictionary.map
+let id_fold      = IntegerDictionary.fold
+let id_merge     = IntegerDictionary.merge
+let id_remove    = IntegerDictionary.remove
+let id_mem       = IntegerDictionary.mem
 let id_singleton = IntegerDictionary.singleton
 
 let id_rem_occ key data dic =
-  let datas = id_find key dic in
+  let datas  = id_find key dic in
   let datas' = rem data datas in
-  dic |> id_remove key |> id_add key datas'
+  dic |> id_remove key 
+      |> id_add key datas'
 
 let id_replace_occ key data data' dic =
-  let datas = id_find key dic in
+  let datas  = id_find key dic in
   let datas' = data' :: (rem data datas) in
-  dic |> id_remove key |> id_add key datas'
+  dic |> id_remove key 
+      |> id_add key datas'
 
 (* Create a dictionary of fresh renamings *)
 let rec new_name_map = function
-  | [] -> id_empty
+  | []      -> id_empty
   | x :: xs -> new_name_map xs |> id_add x (nu ())
 
 let map_of_pair_list xys =
@@ -300,22 +304,34 @@ let map_to_name_pair_list dict =
    - auxiliary : pin of int, to account for unassociative binary gates *)
     
 type c_label = 
-    High | Low | Z | Illegal | Fork | Join | Disconnect | Braid | Nmos | Pmos | Box | Pin of int | Wait
+    High 
+  | Low 
+  | Z 
+  | Illegal 
+  | Fork 
+  | Join 
+  | Disconnect 
+  | Braid 
+  | Nmos 
+  | Pmos 
+  | Box 
+  | Pin of int 
+  | Wait
   
 let string_of_label (l:c_label) = match l with
-  | High  -> "H"
-  | Low  -> "L"
-  | Z  -> "Z"
-  | Illegal  -> "T"
-  | Fork  -> "F"
-  | Join  -> "J"
-  | Disconnect  -> "D"
-  | Braid  -> "X"
-  | Nmos  -> "N"
-  | Pmos  -> "P"
-  | Box  -> "B"
-  | Pin n -> "P" ^ (string_of_int n) ^ "_"
-  | Wait -> "W"
+  | High       -> "H"
+  | Low        -> "L"
+  | Z          -> "Z"
+  | Illegal    -> "T"
+  | Fork       -> "F"
+  | Join       -> "J"
+  | Disconnect -> "D"
+  | Braid      -> "X"
+  | Nmos       -> "N"
+  | Pmos       -> "P"
+  | Box        -> "B"
+  | Pin n      -> "P" ^ (string_of_int n) ^ "_"
+  | Wait       -> "W"
 
 let label_of_const (g : gate) = match g with
   | Hg  -> High
@@ -353,7 +369,7 @@ let vertices_from_edges e =
 let wf_ptg t =
   (* the set of nodes is partitioned *)
   let vis, vos = vertices_from_edges t.edges in
-  let vs = t.ins @ t.outs @ t.pre @ t.main in 
+  let vs       = t.ins @ t.outs @ t.pre @ t.main in
   intersect t.ins (t.outs @ t.pre @ t.main) = []
   && intersect t.outs (t.pre @ t.main) = []
   && intersect t.pre t.main = []
@@ -367,10 +383,10 @@ let rec dot_of_edge x ys label_map =
   List.fold_left (fun s y ->
       let l1 = match id_find' x label_map
         with Some d -> (string_of_label d) ^ (string_of_int x)
-           | None -> string_of_int x in 
+           | None   -> string_of_int x in 
       let l2 = match id_find' y label_map
         with Some d -> (string_of_label d) ^ (string_of_int y)
-           | None -> string_of_int y in 
+           | None   -> string_of_int y in 
       s ^ ("  " ^ l1 ^ " -> " ^ l2 ^ ";\n")) "" ys
   
 let dot_of_ptg ptg =
@@ -392,9 +408,8 @@ let dot_of_ptg ptg =
 
 let ptg_to_file fname ptg =
   let fhandle = open_out fname in
-  ptg
-  |> dot_of_ptg
-  |> output_string fhandle;
+  ptg |> dot_of_ptg
+      |> output_string fhandle;
   close_out fhandle
 
 
@@ -403,9 +418,9 @@ let verbose = ref Verbose
 let dump_index = ref 0 (* for naming the outputs *)
   
 let report s t = match !verbose with
-    | Quiet  -> ()
+    | Quiet    -> ()
     | Message  -> print_endline s
-    | Dump  ->
+    | Dump     ->
       dump_index := 1 + !dump_index;
       let fdot = "/tmp/dump" ^ (string_of_int !dump_index) ^ ".dot" in 
       let fpdf = "/tmp/dump" ^ (string_of_int !dump_index) ^ ".pdf" in
@@ -424,6 +439,7 @@ let report s t = match !verbose with
    these PTGs linearly. If need be they must be replicated using this
    function below *)
 
+(* FIXME plante ... *) 
 let rec refresh xs rdic =
   List.map (fun x -> id_find x rdic) xs
 
@@ -442,17 +458,17 @@ let rec refresh_labels labels dic =
     labels id_empty
 
 let merger_l k a b = match a, b with
-  | None, None -> None
-  | Some a, None -> Some a
-  | None, Some b -> Some b
+  | None  , None   -> None
+  | Some a, None   -> Some a
+  | None  , Some b -> Some b
   | Some a, Some b -> Some (a @ b |> setify)
 
 let merger_v k a b = match a, b with
-  | None, None -> None
-  | Some a, None -> Some a
-  | None, Some b -> Some b
+  | None  , None              -> None
+  | Some a, None              -> Some a
+  | None  , Some b            -> Some b
   | Some a, Some b when a = b -> Some a
-  | Some a, Some b-> failwith "merger_v"
+  | Some a, Some b            -> failwith "merger_v"
 
 let rec id_mergers = function
   | [] -> id_empty
@@ -467,9 +483,9 @@ let bmre = ref 0.
 let reverse_edges (e : e_type) =
   let merger v_trg vs_src vs_src' = match vs_src, vs_src' with 
     | Some vs, Some vs' -> Some (vs @ vs')
-    | Some vs, None -> Some vs
-    | None, Some vs -> Some vs
-    | None, None -> None
+    | Some vs, None     -> Some vs
+    | None, Some vs     -> Some vs
+    | None, None        -> None
   in
   let t0 = Sys.time () in 
   let e' = id_fold (fun v_src vs_trg e ->
@@ -481,36 +497,36 @@ let reverse_edges (e : e_type) =
   e'
 
 let reverse_ptg (t : pTG) : pTG =
-  { ins = t.outs ;
-    outs = t.ins ; 
-    pre = t.post ;
-    post = t.pre ;
-    main = t.main ;
-    edges = reverse_edges t.edges ;
-    segde = None ;
+  { ins    = t.outs ;
+    outs   = t.ins ;
+    pre    = t.post ;
+    post   = t.pre ;
+    main   = t.main ;
+    edges  = reverse_edges t.edges ;
+    segde  = None ;
     labels = t.labels ;
   }
 
 (* It's important that the order is kept in the node lists *)
 let replicate ptg =
-  let ins_new  = new_name_map ptg.ins in
+  let ins_new  = new_name_map ptg.ins  in
   let outs_new = new_name_map ptg.outs in
-  let pre_new  = new_name_map ptg.pre in
+  let pre_new  = new_name_map ptg.pre  in
   let main_new = new_name_map ptg.main in
   let post_new = new_name_map ptg.post in
-  let all_new  = ins_new
-                 |> id_merge merger_v outs_new
-                 |> id_merge merger_v pre_new
-                 |> id_merge merger_v main_new
-                 |> id_merge merger_v post_new in 
-  { ins = map_to_name_list ins_new;
-    outs = map_to_name_list outs_new;
-    pre = map_to_name_list pre_new;
-    main = map_to_name_list main_new;
-    post = map_to_name_list post_new;
+  let all_new  = ins_new |> id_merge merger_v outs_new
+                         |> id_merge merger_v pre_new
+                         |> id_merge merger_v main_new
+                         |> id_merge merger_v post_new
+  in 
+  { ins    = map_to_name_list ins_new;
+    outs   = map_to_name_list outs_new;
+    pre    = map_to_name_list pre_new;
+    main   = map_to_name_list main_new;
+    post   = map_to_name_list post_new;
     labels = refresh_labels ptg.labels all_new;
-    edges = refresh_edges ptg.edges all_new;
-    segde = Some (reverse_edges ptg.edges);
+    edges  = refresh_edges ptg.edges all_new;
+    segde  = Some (reverse_edges ptg.edges);
   }
   
 let (test_ptg : pTG) =
@@ -540,9 +556,9 @@ let test_ptg' = replicate test_ptg
 (* We assume the two graphs don't share names *)				  
 let tensor_ptg ptg1 ptg2 : pTG = 
   {
-    ins    = ptg1.ins @ ptg2.ins;
+    ins    = ptg1.ins  @ ptg2.ins;
     outs   = ptg1.outs @ ptg2.outs;
-    pre    = ptg1.pre @ ptg2.pre;
+    pre    = ptg1.pre  @ ptg2.pre;
     main   = ptg1.main @ ptg2.main;
     post   = ptg1.post @ ptg2.post;
     edges  = id_merge merger_l ptg1.edges ptg2.edges;
@@ -589,24 +605,24 @@ let rec ptg_of_diag = function
   | Unit -> empty_ptg
   | Id   ->
     let a0, a1, a2 = nu (), nu (), nu () in 
-    let t = { empty_ptg with ins = [a0];
-                             main = [a1];
-                             outs = [a2];
+    let t = { empty_ptg with ins   = [a0];
+                             main  = [a1];
+                             outs  = [a2];
                              edges = map_of_pair_list [(a0,[a1]); (a1,[a2])]; }
     in t
   (* These are the transistors -- non commutative *)
   | Const g when List.mem g [Ng; Pg] ->
     let in1, in2, a, pin1, pin2, out
       = nu (), nu (), nu (), nu (), nu (), nu () in
-    let t = { empty_ptg with ins = [in1; in2];
-                             outs = [out];
-                             main = [a; pin1; pin2];
-                             edges = id_empty
-                                     |> id_add in1 [pin1] (* Gate   *)
-                                     |> id_add in2 [pin2] (* Source *)
-                                     |> id_add pin1 [a]
-                                     |> id_add pin2 [a]
-                                     |> id_add a [out];
+    let t = { empty_ptg with ins    = [in1; in2];
+                             outs   = [out];
+                             main   = [a; pin1; pin2];
+                             edges  = id_empty
+                                      |> id_add in1 [pin1] (* Gate   *)
+                                      |> id_add in2 [pin2] (* Source *)
+                                      |> id_add pin1 [a]
+                                      |> id_add pin2 [a]
+                                      |> id_add a [out];
                              labels = id_empty
                                       |> id_add pin1 (Pin 1)
                                       |> id_add pin2 (Pin 2)
@@ -616,15 +632,15 @@ let rec ptg_of_diag = function
   | Const Xg ->
     let in1, in2, a, pin1, pin2, out1, out2
       = nu (), nu (), nu (), nu (), nu (), nu (), nu () in
-    let t = { empty_ptg with ins = [in1; in2];
-                             outs = [out1; out2];
-                             main = [a; pin1; pin2];
-                             edges = id_empty
-                                     |> id_add in1 [pin1]
-                                     |> id_add in2 [pin2]
-                                     |> id_add pin1 [a]
-                                     |> id_add pin2 [a]
-                                     |> id_add a [out1; out2];
+    let t = { empty_ptg with ins    = [in1; in2];
+                             outs   = [out1; out2];
+                             main   = [a; pin1; pin2];
+                             edges  = id_empty
+                                      |> id_add in1 [pin1]
+                                      |> id_add in2 [pin2]
+                                      |> id_add pin1 [a]
+                                      |> id_add pin2 [a]
+                                      |> id_add a [out1; out2];
                              labels = id_empty
                                       |> id_add pin1 (Pin 1)
                                       |> id_add pin2 (Pin 2)
@@ -632,24 +648,24 @@ let rec ptg_of_diag = function
     in t
   | Const g ->
     let (m, n) = arity g in 
-    let nins = new_names m in
-    let nouts = new_names n in
-    let ngate = nu () in
-    let t = { empty_ptg with ins = nins;
-                             outs = nouts;
-                             main = [ngate];
+    let nins   = new_names m in
+    let nouts  = new_names n in
+    let ngate  = nu () in
+    let t = { empty_ptg with ins   = nins;
+                             outs  = nouts;
+                             main  = [ngate];
                              edges = map_of_pair_list
                                  ((ngate, nouts) ::
                                   (List.map (fun x -> (x, [ngate])) nins));
                              labels = map_of_pair_list [(ngate, label_of_const g)] } 
     in t
   | Boxi (name, x, y, m, n) -> (* NOTE: This may not be commutative, use pins! *)
-    let nins = new_names m in
+    let nins  = new_names m in
     let nouts = new_names n in
     let ngate = nu () in 
-    { empty_ptg with ins = nins;
-                     outs = nouts;
-                     main = [ngate];
+    { empty_ptg with ins   = nins;
+                     outs  = nouts;
+                     main  = [ngate];
                      edges = map_of_pair_list
                          ((ngate, nouts) ::
                           (List.map (fun x -> (x, [ngate])) nins));
@@ -659,10 +675,10 @@ let rec ptg_of_diag = function
   | Comp (d1, d2) ->
     let t = compose_ptg (ptg_of_diag d1) (ptg_of_diag d2) in t
   | Trc d -> let ptg = ptg_of_diag d in
-    let t = { ptg with ins = List.tl ptg.ins;
-                       outs = List.tl ptg.outs;
-                       pre = (List.hd ptg.ins) :: ptg.pre;
-                       post = (List.hd ptg.outs) :: ptg.post;
+    let t = { ptg with ins   = List.tl ptg.ins;
+                       outs  = List.tl ptg.outs;
+                       pre   = (List.hd ptg.ins) :: ptg.pre;
+                       pos t = (List.hd ptg.outs) :: ptg.post;
                        edges = id_add
                            (List.hd ptg.outs) [List.hd ptg.ins]
                            ptg.edges; } in t
@@ -859,16 +875,16 @@ let reduce_constant a (t:pTG) : pTG =
         let v2 = id_find a02 t.labels in 
         if is_value v1 && is_value v2 then 
           let v = GateEqns.find (v1, v2, gate) gate_equations in
-          let t = { t with main = t.main
-                                  |> rem a1
-                                  |> rem a2
-                                  |> rem a01
-                                  |> rem a02 ;
-                           edges = t.edges
-                                   |> id_remove a1
-                                   |> id_remove a2 
-                                   |> id_remove a01
-                                   |> id_remove a02 ;
+          let t = { t with main   = t.main
+                                    |> rem a1
+                                    |> rem a2
+                                    |> rem a01
+                                    |> rem a02 ;
+                           edges  = t.edges
+                                    |> id_remove a1
+                                    |> id_remove a2 
+                                    |> id_remove a01
+                                    |> id_remove a02 ;
                            labels = t.labels
                                     |> id_remove a1
                                     |> id_remove a2 
@@ -883,10 +899,10 @@ let reduce_constant a (t:pTG) : pTG =
              || (gate = Pmos) && (v1 = Z || v1 = High) then
           let v = GateEqns.find (v1, Illegal, gate) gate_equations in
           let t = { t with main = t.main |> rem a1 |> rem a01 ;
-                           edges = t.edges 
-                                   |> id_remove a1
-                                   |> id_remove a2
-                                   |> id_remove a01;
+                           edges  = t.edges 
+                                    |> id_remove a1
+                                    |> id_remove a2
+                                    |> id_remove a01;
                            labels = t.labels
                                     |> id_remove a1
                                     |> id_remove a2 
@@ -906,9 +922,9 @@ let reduce_constant a (t:pTG) : pTG =
       asrt (List.mem v2 [ Z;  High; Low; Illegal]);
       let v = GateEqns.find (v1, v2, gate) gate_equations in
       let t = { t with main = t.main |> rem a1 |> rem a2 ;
-                       edges = t.edges
-                               |> id_remove a1
-                               |> id_remove a2 ;
+                       edges  = t.edges
+                                |> id_remove a1
+                                |> id_remove a2 ;
                        labels = t.labels
                                 |> id_remove a1
                                 |> id_remove a2 
@@ -957,13 +973,20 @@ let braid a (t : pTG) : pTG =
     let a1, a2 = if i < j then a1, a2 else a2, a1 in (* nodes in pin order *)
     let a01 = get_unique_target a1 segde in
     let a02 = get_unique_target a2 segde in
-    let t = { t with main = t.main |> rem a1 |> rem a2 |> rem a;
-                     edges = t.edges |> id_remove a
-                             |> id_remove a1  |> id_remove a2
-                             |> id_remove a01 |> id_remove a02
-                             |> id_add a01 [a2'] |> id_add a02 [a1'] ;
+    let t = { t with 
+                     main   = t.main   |> rem a1 
+                                       |> rem a2 
+                                       |> rem a;
+                     edges  = t.edges  |> id_remove a
+                                       |> id_remove a1  
+                                       |> id_remove a2
+                                       |> id_remove a01 
+                                       |> id_remove a02
+                                       |> id_add a01 [a2'] 
+                                       |> id_add a02 [a1'] ;
                      labels = t.labels |> id_remove a
-                              |> id_remove a1  |> id_remove a2 ;} in
+                                       |> id_remove a1  
+                                       |> id_remove a2 ;} in
     (* let s = Printf.sprintf "Braided at %d with %d and %d!" a a01 a02 in 
        report s t; *)
     t
@@ -1262,40 +1285,76 @@ let ptg_of_dag dag =
      * inside the dag
      *)
     let nodes  = dag.nodes  |> List.map (fun (x,y,z) -> x) in 
-    let iport  = dag.iports |> List.map (fun (x,y) -> x) in 
-    let oport  = dag.oports |> List.map (fun (x,y) -> x) in 
+    let iport  = dag.iports |> List.map (fun (x,y) -> x)   in 
+    let oport  = dag.oports |> List.map (fun (x,y) -> x)   in 
     let ibind  = dag.ibinders in
     let obind  = dag.obinders in 
-    let inside = Utils.remove_list nodes (iport @ oport @ ibind @ obind) in
+    let inside = Utils.remove_list nodes (ibind @ obind) in
+    
+    (* Creating the input nodes and outputs nodes *)
+    let ins    = iport |> List.mapi (fun k _ -> k + Dags.maxid dag + 1) in
+    let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 1) in
     (* now we have the 5 disjoint sets of nodes *)
+
     (* The edges without port information *)
     let edges1 = dag.edges |> List.map (fun (x,y) -> (fst x, fst y)) in 
-    let get_neighbours x = edges1 |> List.filter (fun (a,b) -> a = x) |> List.map snd in 
-    (* The edges organised in an adjency list [complexity = awfull] *)
-    let edges2 = nodes |> List.map (fun x -> (x, get_neighbours x)) in
+    let edges2 = (List.combine oport outs) @ (List.combine ins iport) @ edges1 in
+    let get_neighbours x = edges2 |> List.filter (fun (a,b) -> a = x) |> List.map snd in 
+    (* The edges organised in an adjency list [complexity = awfull] 
+     * NOTE don't forget the nodes from the ins and outs !
+     **)
+    let edges3 = (ins @ outs @ nodes) |> List.map (fun x -> (x, get_neighbours x)) in
     (* Now we have the edges *)
+
     (* Converting the albels *)  
     let convert_lab _ = Box in
     let labs1 = dag.labels |> List.map (fun (x,y) -> (x, convert_lab y)) in  
+    (* NOTE only the nodes (inside) can be labeled, it is safe to ignore the ins/outs *)
     let labs2 = nodes |> List.map (fun x -> (x, Utils.imageV x labs1))   in
     let pair_opt (a,b) = match b with
         | None   -> None
         | Some x -> Some (a,x)
     in
     let labs3 = labs2 |> List.map pair_opt |> Utils.list_of_options  in 
+
+    print_string "INSIDE: "; 
+    List.iter (fun i -> print_int i; print_string ",  ") inside; 
+    print_newline ();
+    print_string "INPUTS: "; 
+    List.iter (fun i -> print_int i; print_string ",  ") ins; 
+    print_newline ();
+    print_string "OUTPUTS: "; 
+    List.iter (fun i -> print_int i; print_string ",  ") outs; 
+    print_newline ();
+    print_string "PRE: "; 
+    List.iter (fun i -> print_int i; print_string ",  ") ibind; 
+    print_newline ();
+    print_string "POST: "; 
+    List.iter (fun i -> print_int i; print_string ",  ") obind; 
+    print_newline ();
+    print_string "EDGES BEFORE: \n";
+    List.iter (fun (i,j) -> print_int i; print_string "-> "; print_int j; print_string "\n") edges2; 
+    print_newline ();
+    print_string "EDGES: \n"; 
+    List.iter (fun (i,j) -> print_int i; print_string "-> {"; List.iter (fun k -> print_int k ; print_string ", ") j; print_string "}\n") edges3; 
+    print_string "LABELS: \n";
+    List.iter (fun (i,j) -> print_int i; print_string " = "; print_string "B\n") labs3; 
+
+    _gbl_name := Dags.maxid dag + List.length ins + List.length outs + 5;
+
     {
-        ins    = iport                   ;
-        outs   = oport                   ;
+        ins    = ins                     ;
+        outs   = outs                    ;
         pre    = ibind                   ;
         main   = inside                  ;
         post   = obind                   ;
-        edges  = map_of_pair_list edges2 ;
+        edges  = map_of_pair_list edges3 ;
         segde  = None                    ;
         labels = map_of_pair_list labs3  ;
     };;
 
 
-let example_expr = Compiler.typecheck_and_compile Compiler.test6;;
+let example_expr = Compiler.typecheck_and_compile Compiler.test5;;
 
 
 let run =
@@ -1303,7 +1362,7 @@ let run =
   dump_index := 1;
   verbose := Verbose;
   (* run_ternary mux "mux" *)
-  run_test (ptg_of_dag example_expr) "test-aliaume" 2;
+  run_test (ptg_of_dag example_expr) "test-aliaume" 5;
   (* run_nullary ((h ** h) $$ bsm) "berry-mendler" 5; *)
   let dt = Sys.time () -. t0 in
   Printf.printf "Running time %f out of which reversing %f.\n" dt !bmre
