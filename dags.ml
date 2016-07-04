@@ -131,7 +131,7 @@ let parallel ~top:p ~bottom:q =
     let mp = maxid p in 
     let mq = maxid q in 
     if mq < mp then
-        let np = mapids (fun x -> x + mq) p in  
+        let np = mapids (fun x -> x + mq)  p in  
         { iports = np.iports @ q.iports                   ;
           oports = np.oports @ q.oports                   ;
           nodes  = np.nodes @ q.nodes                     ;

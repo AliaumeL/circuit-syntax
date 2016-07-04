@@ -8,7 +8,6 @@ let extract_type tp types = match tp with
 
 let extract_types (a,b) types = (extract_type a types, extract_type b types);;
 
-
 (***
  *
  * Print the annotated ast into a readable form showing 
@@ -75,10 +74,9 @@ let dag_of_typed_ast types c =
  *)
 let typecheck_and_compile c =  
     let (annot,types) = calcul_type c in  
-    (** DEBUG 
+    print_newline ();
     print_string (print_typed_ast types annot);
     print_newline ();
-    **)
     dag_of_typed_ast types annot;;
     
 

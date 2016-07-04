@@ -6,6 +6,7 @@ let runTests module_name functions =
 
 let () = 
     runTests "utils.ml" Utils.tests;
+    runTests "parser.ml" Parser.tests;;
     runTests "dot.ml" Dot.tests;;
     runTests "solver.ml" Solver.tests;
     runTests "typesystem.ml" Typesystem.tests;

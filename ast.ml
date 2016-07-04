@@ -74,8 +74,16 @@ let uid_var       = ref 0;;
 let newvarname () = incr uid_var; "v_" ^ string_of_int !uid_var ;;
 
 (* Les petites fonctions qui aident bien dans la vie *)
-let (===) a b    = Circ (Seq (a,b));;
-let (|||) a b    = Circ (Par (a,b));;
+let (===) a b    = match (a,b) with
+    | (Circ IdPoly), _ -> b
+    | _, (Circ IdPoly) -> a
+    | _              -> Circ (Seq (a,b));;
+
+let (|||) a b    = match (a,b) with
+    | Circ (Const (_,0,0)), _ -> b
+    | _, Circ (Const (_,0,0)) -> a
+    | _                       -> Circ (Par (a,b));;
+
 let vari x       = Circ (VarI x);;
 let varo x       = Circ (VarO x);;
 let const x y z  = Circ (Const (x,y,z));;
@@ -102,6 +110,8 @@ let bindi y c    =
 let bindo x c    = 
     let y = newvarname () in 
     links [(x,y)] ((vari y) ||| c);;
+
+let empty = Circ (Const ("unit", 0, 0));;
 
 
 let print_ast c = 

@@ -17,6 +17,7 @@ val foldc_typed : ('a circuit -> 'b -> 'a) -> 'b typed_circ -> 'a
 
 val ( === ) : circ -> circ -> circ
 val ( ||| ) : circ -> circ -> circ
+val empty : circ
 val vari : string -> circ
 val varo : string -> circ
 val const : string -> int -> int -> circ

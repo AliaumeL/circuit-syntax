@@ -1292,8 +1292,8 @@ let ptg_of_dag dag =
     let inside = Utils.remove_list nodes (ibind @ obind) in
     
     (* Creating the input nodes and outputs nodes *)
-    let ins    = iport |> List.mapi (fun k _ -> k + Dags.maxid dag + 1) in
-    let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 1) in
+    let ins    = iport |> List.mapi (fun k _ -> k + Dags.maxid dag + 2) in
+    let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 2) in
     (* now we have the 5 disjoint sets of nodes *)
 
     (* The edges without port information *)
@@ -1303,7 +1303,10 @@ let ptg_of_dag dag =
     (* The edges organised in an adjency list [complexity = awfull] 
      * NOTE don't forget the nodes from the ins and outs !
      **)
-    let edges3 = (ins @ outs @ nodes) |> List.map (fun x -> (x, get_neighbours x)) in
+    let edges3 = (ins @ outs @ nodes) |> List.map (fun x -> (x, get_neighbours x))
+                                      |> List.filter (fun x -> not (snd x = []))
+    in
+
     (* Now we have the edges *)
 
     (* Converting the albels *)  
@@ -1354,7 +1357,22 @@ let ptg_of_dag dag =
     };;
 
 
-let example_expr = Compiler.typecheck_and_compile Compiler.test5;;
+let example_expr = 
+    let ic    = open_in "lines.txt" in 
+    let buf   = Buffer.create 80 in  
+    Stream.of_channel ic |> Stream.iter (Buffer.add_char buf);
+    let input = Buffer.contents buf in
+    let lexed =  input |> Lexer.do_lexing in
+    print_string "\n\nLEXED : ";
+    print_string lexed;
+    print_string "\n\n\n";
+    let parsed = lexed |> Parser.parse_ast in 
+    print_string "\n\nPARSED : ";
+    print_string (Ast.print_ast parsed);
+    print_string "\n\n\n";
+    let compiled = parsed |> Compiler.typecheck_and_compile in 
+    compiled;;
+
 
 
 let run =
@@ -1362,7 +1380,7 @@ let run =
   dump_index := 1;
   verbose := Verbose;
   (* run_ternary mux "mux" *)
-  run_test (ptg_of_dag example_expr) "test-aliaume" 5;
+  run_test (ptg_of_dag example_expr) "test-aliaume" 1;
   (* run_nullary ((h ** h) $$ bsm) "berry-mendler" 5; *)
   let dt = Sys.time () -. t0 in
   Printf.printf "Running time %f out of which reversing %f.\n" dt !bmre

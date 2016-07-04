@@ -103,12 +103,4 @@ let interpret_seq str =
     Buffer.contents buf;;
 
 
-
-
-let () = 
-    let ic  = open_in "lines.txt" in 
-    let buf = Buffer.create 80 in  
-    Stream.of_channel ic |> Stream.iter (Buffer.add_char buf);
-    let input = Buffer.contents buf in
-    input |> interpret_seq |> remove_spaces |> print_string;; 
-
+let do_lexing s = s |> remove_spaces |> interpret_seq |> remove_spaces;; 
