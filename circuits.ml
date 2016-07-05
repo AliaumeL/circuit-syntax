@@ -1566,7 +1566,16 @@ let convert_lab = function
                    |   _    -> Box
             end;;
 
-(* Converting from a liDAG to a ptg *)
+(* Converting from a liDAG to a ptg
+ *
+ * Lots of conversions 
+ * 1. Inputs are not handled the same way
+ * 2. Labels are not « compatible » 
+ * 3. The notion of « port » needs to be 
+ *    translated into the notion of « pin » 
+ *    (which is the bad part of the code)
+ *
+ * *)
 let ptg_of_dag dag =  
     (* Starts by ignoring all the additional information
      * inside the dag
@@ -1589,39 +1598,37 @@ let ptg_of_dag dag =
     (**** PINS ****)
     (* we need pins to convert from « ports » to 
      * regular nodes, while keeping the notion of order 
+     *
+     * WE CREATE ONLY INPUT PINS because 
+     * the design of pTG does NOT allow 
+     * specific outputs ... 
      *)
     let pins   = dag.nodes 
-              |> List.map (fun (x,a,b) -> (x, (new_names (a+1), new_names (b+1)))) 
+              |> List.map (fun (x,a,b) -> (x, new_names a)) 
     in
-    let pins_nodes = pins |> List.map (fun (_,(x,y)) -> x @ y) |> List.concat in
+    let pins_nodes = pins |> List.map snd |> List.concat in
 
     let pins_edges = pins
-                  |> List.map (fun (x,(i_pins,o_pins)) ->  
-                          List.map (fun pin -> (pin,x)) i_pins 
-                          @
-                          List.map (fun pin -> (x,pin)) o_pins)
+                  |> List.map (fun (x,i_pins) ->  
+                          List.map (fun pin -> (pin,x)) i_pins)
                   |> List.concat
     in
 
     let pins_labels = pins 
-                  |> List.map (fun (x,(i_pins,o_pins)) -> 
-                          List.mapi (fun i pin -> (pin, Pin i)) i_pins
-                          @
-                          List.mapi (fun i pin -> (pin, Pin i)) o_pins)
+                  |> List.map (fun (x,i_pins) -> 
+                          List.mapi (fun i pin -> (pin, Pin i)) i_pins)
                   |> List.concat
     in
 
     let find_pin ~node ~pin ~pos = 
-        print_string "find_pin for node "; 
-        print_int node; print_string " pin number ";
-        print_int pin; print_string " position ";
         Utils.imageV ~elem:node ~func:pins
                   |> Utils.of_option
-                  |> (fun (x,y) -> List.nth (if pos then x else y) (pin-1))
+                  |> (fun x -> 
+                          List.nth x (pin-1))
     in
 
-    let find_pin_right n x = find_pin ~node:n ~pin:x ~pos:false in 
-    let find_pin_left  n x = find_pin ~node:n ~pin:x ~pos:true  in 
+    let find_pin_right n x = find_pin ~node:n ~pin:x ~pos:true  in 
+    let find_pin_left  n x = n in (* TODO arf arf arf *)
 
     (* The edges trying to keep port information 
      * if the node specifies a port, we fetch the corresponding one 
