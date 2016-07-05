@@ -292,6 +292,11 @@ let id_merge     = IntegerDictionary.merge
 let id_remove    = IntegerDictionary.remove
 let id_mem       = IntegerDictionary.mem
 let id_singleton = IntegerDictionary.singleton
+let id_find_option x y = 
+    try 
+        Some (id_find x y)
+    with
+        Not_found -> None;;
 
 let id_rem_occ key data dic =
   let datas  = id_find key dic in
@@ -983,13 +988,6 @@ let is_value (l:c_label) = match l with
   | _        -> false
 
 
-let mux_func = function
-    | [Illegal;_;_] -> Illegal 
-    | [Z;_;_]    -> Z
-    | [High;a;_] -> a
-    | [Low;_;a ] -> a
-    | _ -> failwith "mux_func list wrong number arguments";;
-
 (* reduce MUX 
  *
  * @ptg      : the initial graph
@@ -1012,7 +1010,6 @@ let reduce_mux mux t =
     let names  = inputs 
               |> List.map (fun x -> id_find x t.labels) 
     in
-    let [i1;i2;i3]            = inputs in (* There are always 3 inputs values *)
     let [Pin a; Pin b; Pin c] = names  in (* The ancestor of a MUX gate are always Pins *)
     (* 
      * order the inputs respecting the pin 
@@ -1022,34 +1019,68 @@ let reduce_mux mux t =
                |> List.sort (fun k l -> compare (fst k) (fst l))
                |> List.map snd
     in
+    let [p1;p2;p3]            = ordered_inputs in (* There are always 3 inputs values *)
     (* 
      * Now get the nodes attached to each pin number 
      * with their associated values 
      *)
-    let nodes_and_val = ordered_inputs 
-                     |> List.map (fun x -> get_unique_target x segde)
-                     |> List.map (fun n -> (n, id_find n t.labels)) 
+    let (control_node,control_value) = ordered_inputs 
+                     |> List.hd 
+                     |> (fun x -> get_unique_target x segde)
+                     |> (fun n -> (n, id_find_option n t.labels)) 
     in
-    (* Now check if the values are real values ... *)
-    let nodes,values = List.split nodes_and_val in  
-    if List.for_all is_value values then 
+    (* first we remove the value and the first pin *)
+    let new_graph1 = filter_nodes (fun x -> x <> control_node && x <> p1) t in
+    let new_graph2 = { new_graph1 with
+        labels = new_graph1.labels
+              |> id_remove mux
+              |> id_remove p2
+              |> id_remove p3;
+
+        edges  = new_graph1.edges 
+              |> id_remove p2
+              |> id_remove p3
+                     }
+    in
+    begin
         (* propagation through the MUX gate *)
-        let new_value = mux_func values in 
+        match control_value with
+            | Some Illegal ->  
+                    {
+                        new_graph2 with 
+                        labels = new_graph2.labels
+                              |> id_add mux Illegal
+                              |> id_add p3  Z
+                              |> id_add p2  Z
+                    }
+            | Some Z       ->
+                    {
+                        new_graph2 with 
+                        labels = new_graph2.labels
+                              |> id_add mux Z 
+                              |> id_add p3  Z
+                              |> id_add p2  Z
+                    }
+            | Some High    -> 
+                    {
+                        new_graph2 with 
+                        labels = new_graph2.labels
+                              |> id_add p3  Z;
+                        edges  = new_graph2.edges
+                              |> id_add p2  [mux];
 
-        (* remove the old nodes *)
-        let to_remove = inputs @ nodes  in
-        let rm_func x = not (List.mem x to_remove) in 
-        let new_graph = filter_nodes rm_func t in 
+                    }
+            | Some Low     ->
+                    {
+                        new_graph2 with 
+                        labels = new_graph2.labels
+                              |> id_add p2  Z;
+                        edges  = new_graph2.edges
+                              |> id_add p3  [mux];
 
-        (* creating the new graph *)
-        {
-            new_graph with
-            labels = new_graph.labels 
-                  |> id_remove mux
-                  |> id_add mux new_value
-        }
-    else
-        t;;
+                    }
+            | _            -> t
+    end;;
 
 
 (* what is a ? I think it's the node *)
@@ -1127,10 +1158,7 @@ let reduce_constant a (t:pTG) : pTG =
       let s = Printf.sprintf "Join reduced from %d with %d and %d!" a a1 a2 in
       report s t; t
     else if gate = Mux then
-        try
-            reduce_mux a t
-        with
-            _ -> failwith "MUX REDUCING FAILED"
+        reduce_mux a t
     else t
   with
     Not_found -> t (* the argument given is not a gate ... *)
@@ -1588,12 +1616,12 @@ let ptg_of_dag dag =
     let inside = Utils.remove_list nodes (ibind @ obind) in
     
     (* Creating the input nodes and outputs nodes *)
-    let ins    = iport |> List.mapi (fun k _ -> k + Dags.maxid dag + 2) in
-    let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 2) in
+    let ins    = iport |> List.mapi (fun k _ -> k + Dags.maxid dag + 3) in
+    let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 3) in
     (* now we have the 5 disjoint sets of nodes *)
 
     (* update the global counter *)
-    _gbl_name := Dags.maxid dag + List.length ins + List.length outs + 5;
+    _gbl_name := Dags.maxid dag + List.length ins + List.length outs + 7;
 
     (**** PINS ****)
     (* we need pins to convert from « ports » to 
