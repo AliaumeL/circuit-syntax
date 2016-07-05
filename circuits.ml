@@ -402,6 +402,39 @@ let wf_ptg t =
   && subset vis vs
   && subset vos vs
 
+
+(* Aliaume's pretty-printing debug stuff *)
+let pp_ptg t = 
+    let ps  = print_string  in 
+    let pn  = print_newline in
+    let soi = string_of_int in 
+    ps "BEGIN\n";
+        ps "\tINS  : "; t.ins  |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tOUTS : "; t.outs |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tPRE  : "; t.pre  |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tPOST : "; t.post |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tMAIN : "; t.main |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tEDGES\n";
+            t.edges 
+            |> IntegerDictionary.iter (fun n arrs -> 
+                  ps "\t\tNODE "; ps (soi n); ps " -> { ";
+                  arrs |> List.map soi |> String.concat ", " |> ps; ps "}"; pn ());
+        ps "\tSEGDE\n";
+            begin 
+                match t.segde with
+                    | None   -> ps "\t\t EMPTY \n"
+                    | Some x -> x 
+                                |> IntegerDictionary.iter (fun n arrs -> 
+                                      ps "\t\tNODE "; ps (soi n); ps " -> { ";
+                                      arrs |> List.map soi |> String.concat ", " |> ps; ps "}"; pn ());
+            end;
+        ps "\tLABELS\n";
+            t.labels 
+            |> IntegerDictionary.iter (fun n lbl -> 
+                    ps "\t\tNODE "; ps (soi n); ps " = "; string_of_label lbl; pn ());
+
+    ps "END\n";;
+
 (***************************************************************)
 (*                       DOT representation                    *)
 
