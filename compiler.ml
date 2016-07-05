@@ -11,10 +11,21 @@ open Ast;;
 open Dags;;
 open Typesystem;;
 
+(**
+ * Extract the type from 
+ * a type variable. If it is a constant
+ * there is nothing to do, if it is a 
+ * variable, we fetch the value in the
+ * type array 
+ *)
 let extract_type tp types = match tp with
     | Const x -> x
     | Var   x -> types.(x);;
 
+(*
+ * Extract type applied at both
+ * parts of a couple
+ *)
 let extract_types (a,b) types = (extract_type a types, extract_type b types);;
 
 (***

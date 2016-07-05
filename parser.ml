@@ -146,11 +146,17 @@ let parse_sstring c s i = (ign_space <*>> parse_string c <<*> ign_space) s i;;
 
 (***** THE HELPER FUNCTION 
  * to assing circuits to specific circuit names 
+ *
+ * TODO 
+ * this function should look inside a file 
+ * containing the mappings ... 
  *)
 let circuit_of_name = function
-    | "B" -> const "B" 3 1
     | "F" -> const "F" 1 1
     | "G" -> const "G" 1 1
+    | "HIGH" -> const "HIGH" 0 1
+    | "LOW"  -> const "LOW"  0 1
+    | "MUX"  -> const "MUX"  3 1
     |  x  -> const x   1 1;;
 
 (**** THE GRAMMAR 

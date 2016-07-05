@@ -349,7 +349,6 @@ type c_label =
   | Pin of int 
   | Wait
   | Mux
-(* TODO : add gates AND / OR / MULT *)
   
 let string_of_label (l:c_label) = match l with
   | High       -> "H"
@@ -440,7 +439,7 @@ let pp_ptg t =
         ps "\tLABELS\n";
             t.labels 
             |> IntegerDictionary.iter (fun n lbl -> 
-                    ps "\t\tNODE "; ps (soi n); ps " = "; string_of_label lbl; pn ());
+                    ps "\t\tNODE "; ps (soi n); ps " = "; print_string (string_of_label lbl); pn ());
 
     ps "END\n";;
 
@@ -516,10 +515,7 @@ let report s t = match !verbose with
    these PTGs linearly. If need be they must be replicated using this
    function below *)
 
-(* FIXME plante parfois ...
- *
- * La liste contient un noeud qui n'a pas 
- * été traduit .. 
+(* 
  *
  * Refresh = map_..._aliaume !
  *
@@ -1004,6 +1000,7 @@ let mux_func = function
  *             the node if possible
  * *)
 let reduce_mux mux t =
+    print_string "REDUCING MUX\n";
     let segde  = reverse_edges t.edges in 
     (* 
      * find the nodes that connects to the
@@ -1130,9 +1127,14 @@ let reduce_constant a (t:pTG) : pTG =
       let s = Printf.sprintf "Join reduced from %d with %d and %d!" a a1 a2 in
       report s t; t
     else if gate = Mux then
-        reduce_mux a t
+        try
+            reduce_mux a t
+        with
+            _ -> failwith "MUX REDUCING FAILED"
     else t
-  with _ -> t (* not safe ... AT ALL ! *)
+  with
+    Not_found -> t (* the argument given is not a gate ... *)
+
 
 (* Propagate a constant through a fork. 
    This rule can be generalised to the whole power of the diagonal rule, 
@@ -1544,6 +1546,27 @@ let run_ternary gate name n =
 (******** ALIAUME HOOK INTO THE CODE **********)
 
 open Dags;;
+
+(* Converting the labels 
+ * for constants into PTG labels 
+ * *)  
+let convert_lab = function
+    | VarI x -> Box 
+    | VarO x -> Box
+    | Const g ->
+            begin 
+                match g with
+                   | "MUX"  -> Mux 
+                   | "BOT"  -> Z
+                   | "TOP"  -> Illegal
+                   | "NMOS" -> Nmos
+                   | "PMOS" -> Pmos
+                   | "HIGH" -> High
+                   | "LOW"  -> Low
+                   |   _    -> Box
+            end;;
+
+(* Converting from a liDAG to a ptg *)
 let ptg_of_dag dag =  
     (* Starts by ignoring all the additional information
      * inside the dag
@@ -1560,21 +1583,74 @@ let ptg_of_dag dag =
     let outs   = oport |> List.mapi (fun k _ -> k + Dags.maxid dag + List.length ins + 2) in
     (* now we have the 5 disjoint sets of nodes *)
 
-    (* The edges without port information *)
-    let edges1 = dag.edges |> List.map (fun (x,y) -> (fst x, fst y)) in 
-    let edges2 = (List.combine oport outs) @ (List.combine ins iport) @ edges1 in
+    (* update the global counter *)
+    _gbl_name := Dags.maxid dag + List.length ins + List.length outs + 5;
+
+    (**** PINS ****)
+    (* we need pins to convert from « ports » to 
+     * regular nodes, while keeping the notion of order 
+     *)
+    let pins   = dag.nodes 
+              |> List.map (fun (x,a,b) -> (x, (new_names (a+1), new_names (b+1)))) 
+    in
+    let pins_nodes = pins |> List.map (fun (_,(x,y)) -> x @ y) |> List.concat in
+
+    let pins_edges = pins
+                  |> List.map (fun (x,(i_pins,o_pins)) ->  
+                          List.map (fun pin -> (pin,x)) i_pins 
+                          @
+                          List.map (fun pin -> (x,pin)) o_pins)
+                  |> List.concat
+    in
+
+    let pins_labels = pins 
+                  |> List.map (fun (x,(i_pins,o_pins)) -> 
+                          List.mapi (fun i pin -> (pin, Pin i)) i_pins
+                          @
+                          List.mapi (fun i pin -> (pin, Pin i)) o_pins)
+                  |> List.concat
+    in
+
+    let find_pin ~node ~pin ~pos = 
+        print_string "find_pin for node "; 
+        print_int node; print_string " pin number ";
+        print_int pin; print_string " position ";
+        Utils.imageV ~elem:node ~func:pins
+                  |> Utils.of_option
+                  |> (fun (x,y) -> List.nth (if pos then x else y) (pin-1))
+    in
+
+    let find_pin_right n x = find_pin ~node:n ~pin:x ~pos:false in 
+    let find_pin_left  n x = find_pin ~node:n ~pin:x ~pos:true  in 
+
+    (* The edges trying to keep port information 
+     * if the node specifies a port, we fetch the corresponding one 
+     * in the pins table 
+     * *)
+    let convert_edge ((a,b),(c,d)) = match (b,d) with
+        | None, None     -> (a,c) 
+        | Some x, None   -> (find_pin_left a x, c) 
+        | None, Some x   -> (a, find_pin_right c x)
+        | Some x, Some y -> (find_pin_left a x, find_pin_right c y)
+    in
+    let edges1 = (List.combine dag.oports (List.map (fun x -> (x,None)) outs)) 
+               @ (List.combine (List.map (fun x -> (x,None)) ins) dag.iports) 
+               @ dag.edges
+    in
+    let edges2 = edges1 |> List.map convert_edge |> (fun x -> x @ pins_edges) in 
+    List.iter (fun (x,y) -> print_int x; print_string " -> "; print_int y; print_newline ())
+              edges2;
     let get_neighbours x = edges2 |> List.filter (fun (a,b) -> a = x) |> List.map snd in 
     (* The edges organised in an adjency list [complexity = awfull] 
      * NOTE don't forget the nodes from the ins and outs !
      **)
-    let edges3 = (ins @ outs @ nodes) |> List.map (fun x -> (x, get_neighbours x))
-                                      |> List.filter (fun x -> not (snd x = []))
+    let edges3 = (pins_nodes @ ins @ outs @ nodes) 
+              |> List.map (fun x -> (x, get_neighbours x))
+              |> List.filter (fun x -> not (snd x = []))
     in
-
     (* Now we have the edges *)
 
-    (* Converting the albels *)  
-    let convert_lab _ = Box in
+
     let labs1 = dag.labels |> List.map (fun (x,y) -> (x, convert_lab y)) in  
     (* NOTE only the nodes (inside) can be labeled, it is safe to ignore the ins/outs *)
     let labs2 = nodes |> List.map (fun x -> (x, Utils.imageV x labs1))   in
@@ -1584,41 +1660,20 @@ let ptg_of_dag dag =
     in
     let labs3 = labs2 |> List.map pair_opt |> Utils.list_of_options  in 
 
-    print_string "INSIDE: "; 
-    List.iter (fun i -> print_int i; print_string ",  ") inside; 
-    print_newline ();
-    print_string "INPUTS: "; 
-    List.iter (fun i -> print_int i; print_string ",  ") ins; 
-    print_newline ();
-    print_string "OUTPUTS: "; 
-    List.iter (fun i -> print_int i; print_string ",  ") outs; 
-    print_newline ();
-    print_string "PRE: "; 
-    List.iter (fun i -> print_int i; print_string ",  ") ibind; 
-    print_newline ();
-    print_string "POST: "; 
-    List.iter (fun i -> print_int i; print_string ",  ") obind; 
-    print_newline ();
-    print_string "EDGES BEFORE: \n";
-    List.iter (fun (i,j) -> print_int i; print_string "-> "; print_int j; print_string "\n") edges2; 
-    print_newline ();
-    print_string "EDGES: \n"; 
-    List.iter (fun (i,j) -> print_int i; print_string "-> {"; List.iter (fun k -> print_int k ; print_string ", ") j; print_string "}\n") edges3; 
-    print_string "LABELS: \n";
-    List.iter (fun (i,j) -> print_int i; print_string " = "; print_string "B\n") labs3; 
 
-    _gbl_name := Dags.maxid dag + List.length ins + List.length outs + 5;
-
-    {
+    let t = {
         ins    = ins                     ;
         outs   = outs                    ;
         pre    = ibind                   ;
-        main   = inside                  ;
+        main   = inside @ pins_nodes     ;
         post   = obind                   ;
         edges  = map_of_pair_list edges3 ;
         segde  = None                    ;
-        labels = map_of_pair_list labs3  ;
-    };;
+        labels = map_of_pair_list (labs3 @ pins_labels)  ;
+    }
+    in
+    report "ALIAUME INIT" t;
+    t;;
 
 
 let example_expr = 
