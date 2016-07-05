@@ -575,7 +575,7 @@ let replicate ptg =
     post   = map_to_name_list_aliaume ptg.post all_new;
     labels = refresh_labels ptg.labels all_new;
     edges  = refresh_edges ptg.edges all_new;
-    segde  = Some (reverse_edges ptg.edges);
+    segde  = None;
   }
   
 let (test_ptg : pTG) =
