@@ -281,6 +281,8 @@ let id_find' key dict = try
 let id_empty     = IntegerDictionary.empty
 let id_add       = IntegerDictionary.add
 let id_map       = IntegerDictionary.map
+let id_mapi      = IntegerDictionary.mapi
+let id_filter    = IntegerDictionary.filter
 let id_fold      = IntegerDictionary.fold
 let id_merge     = IntegerDictionary.merge
 let id_remove    = IntegerDictionary.remove
@@ -499,7 +501,8 @@ let report s t = match !verbose with
       let fpdf = "/tmp/dump" ^ (Printf.sprintf "%003d" !dump_index) ^ ".pdf" in
       ptg_to_file fdot t;
       ignore (Sys.command ("dot -Tpdf " ^ fdot ^ " -o " ^ fpdf));
-      print_endline ("File " ^ (string_of_int !dump_index) ^ " : " ^ s)
+      print_endline ("File " ^ (string_of_int !dump_index) ^ " : " ^ s);
+      pp_ptg t
 
 (* IMPORTANT: Name management policy: To reduce the number of
    renamings we must always create PTGs using fresh names AND use
@@ -1092,6 +1095,12 @@ let mk_fork (nodes : (int * (int * int)) list) t =
                t.labels fork_nodes ; }
 
 let unfold_ptg (t1:pTG) =
+    (* If there is no trace ... then no need
+     * to unfold it ...
+     *)
+    if t1.pre = [] or t1.post = [] then
+        t1
+    else
   let t2    = replicate t1 in
     print_newline ();
   (* Creating new names for the circuit's 
@@ -1240,24 +1249,34 @@ let rec mark segde visited = function (* on the fringe *)
       (match id_find' n segde with
        | None -> mark segde visited ns
        | Some ns' -> mark segde visited (List.rev_append ns ns'))
-      
+     
+
 let mark_and_sweep t =
   let segde = reverse_edges t.edges in
   let reachable = mark segde [] (t.outs) in 
+  let select_reachable = List.filter (fun x -> List.mem x reachable) in 
+  let update_map m = 
+      m
+      |> id_mapi (fun n arrs -> 
+        if List.mem n reachable then 
+            select_reachable arrs 
+        else
+            [])
+      |> id_filter (fun n arrs -> arrs <> []) 
+  in
   let t = {
-    ins   = List.filter (fun x -> List.mem x reachable) t.ins ;
-    outs  = List.filter (fun x -> List.mem x reachable) t.outs ;
-    pre   = List.filter (fun x -> List.mem x reachable) t.pre ;
-    post  = List.filter (fun x -> List.mem x reachable) t.post ;
-    main  = List.filter (fun x -> List.mem x reachable) t.main ;
-    edges = id_fold (fun src trg t' ->
-        if List.mem src reachable then id_add src trg t' else t')
-        t.edges id_empty ;
+    ins   = select_reachable t.ins ;
+    outs  = select_reachable t.outs ;
+    pre   = select_reachable t.pre ;
+    post  = select_reachable t.post ;
+    main  = select_reachable t.main ;
+    (* Suppress the edges from non-reachable nodes 
+     * AND the edges TO non-reachable nodes
+     *)
+    edges = update_map t.edges; 
     segde  = None ;
-    labels = id_fold (fun src trg t' ->
-        if List.mem src reachable then id_add src trg t' else t')
-        t.labels id_empty ;
-          }
+    labels = id_filter (fun n _ -> List.mem n reachable) t.labels  
+  }
   in
   let s = "Garbage collect!" in
   report s t;
