@@ -1,3 +1,22 @@
+(**
+ *
+ * circuits.ml
+ *
+ * Dan Ghica
+ *
+ * Entry point of the program
+ * generates dot output,
+ * handles graph reduction,
+ * embedded DSL, and all.
+ *
+ * « aliaume hook » is the 
+ * hook from all the rest of 
+ * the librairies into this 
+ * file to interface the new 
+ * language and definition to
+ * the new model
+ *
+ *)
      
 (* Utils *)
 let rec take n = function (* take up-to n *)
@@ -51,26 +70,21 @@ let height = 10  (* the default height of a 'tile' *)
 let gap = 5      (* gap between tiles when linking or stacking *)
 let vn = ref 1   (* provide fresh variable number *)
 
-type gate = Hg | Lg | Dg | Fg | Jg | Xg | Tg | Zg | Ng | Pg | Wg 
-    (* TODO | ANDg | ORg | MULTg *)
+type gate = Hg | Lg | Dg | Fg | Jg | Xg | Tg | Zg | Ng | Pg | Wg | Mg 
 
 let string_of_gate (g : gate) = match g with
-  | Hg  -> "H" (* high in        *)
-  | Lg  -> "L" (* low in         *)
-  | Dg  -> "D" (* disconnect     *)
-  | Fg  -> "F" (* fork wire      *)
-  | Jg  -> "J" (* join wires     *)
-  | Xg  -> "X" (* cross wires    *)
-  | Tg  -> "T" (* illegal out    *)
-  | Zg  -> "Z" (* high impedance *)
-  | Ng  -> "N" (* n-mos          *)
-  | Pg  -> "P" (* p-mos          *)
-  | Wg  -> "W" (* wait (delay)   *)
-  (* TODO 
-   * | ANDg -> "AND"
-   * | ORg  -> "OR"
-   * | MULTg -> "MULT"
-   *)
+  | Hg  -> "H"   (* high in        *)
+  | Lg  -> "L"   (* low in         *)
+  | Dg  -> "D"   (* disconnect     *)
+  | Fg  -> "F"   (* fork wire      *)
+  | Jg  -> "J"   (* join wires     *)
+  | Xg  -> "X"   (* cross wires    *)
+  | Tg  -> "T"   (* illegal out    *)
+  | Zg  -> "Z"   (* high impedance *)
+  | Ng  -> "N"   (* n-mos          *)
+  | Pg  -> "P"   (* p-mos          *)
+  | Wg  -> "W"   (* wait (delay)   *)
+  | Mg  -> "MUX" (* multiplexer    *)
 
 let arity = function 
   |  Hg -> (0, 1)
@@ -84,11 +98,7 @@ let arity = function
   |  Ng -> (2, 1)
   |  Pg -> (2, 1)
   |  Wg -> (1, 1)
-  (* TODO 
-   * | ANDg -> (2,1)
-   * | ORg  -> (2,1)
-   * | MULTg -> (3,1) 
-   *)
+  |  Mg -> (3, 1)
 													   
 type diag =
   | Unit 
@@ -145,13 +155,7 @@ let l = Const Lg
 let z = Const Zg
 let t = Const Tg
 let w = Const Wg
-(* TODO 
- * let a = Const ANDg
- * let o = Const ORg
- * let m = Const MULTg
- *)
-
-
+let m = Const Mg
   
 let rec mki = function
   | 0 -> Unit
@@ -344,6 +348,7 @@ type c_label =
   | Box 
   | Pin of int 
   | Wait
+  | Mux
 (* TODO : add gates AND / OR / MULT *)
   
 let string_of_label (l:c_label) = match l with
@@ -360,6 +365,7 @@ let string_of_label (l:c_label) = match l with
   | Box        -> "B"
   | Pin n      -> "P" ^ (string_of_int n) ^ "_"
   | Wait       -> "W"
+  | Mux        -> "MUX"
 
 let label_of_const (g : gate) = match g with
   | Hg  -> High
@@ -373,6 +379,7 @@ let label_of_const (g : gate) = match g with
   | Ng  -> Nmos
   | Pg  -> Pmos
   | Wg  -> Wait
+  | Mg  -> Mux
 
 type pTG   =
   {
@@ -776,6 +783,34 @@ let rec ptg_of_diag = function
    we attempt an unfolding *)
 
 let asrt b = if b then () else failwith "asrt"
+
+
+
+(***
+ * A function to consistently remove a list
+ * of nodes from a graph, with a boolean
+ *)
+let filter_nodes ~func:f ~graph:ptg = 
+    let select_reachable = List.filter f in 
+    let update_map m = m |> id_mapi (fun n arrs -> 
+                                        if f n then 
+                                            select_reachable arrs 
+                                        else  [])
+                         |> id_filter (fun n arrs -> arrs <> []) 
+    in
+    {
+        ins   = select_reachable ptg.ins  ;
+        outs  = select_reachable ptg.outs ;
+        pre   = select_reachable ptg.pre  ;
+        post  = select_reachable ptg.post ;
+        main  = select_reachable ptg.main ;
+        (* Suppress the edges from non-reachable nodes 
+         * AND the edges TO non-reachable nodes
+         *)
+        edges = update_map ptg.edges; 
+        segde  = None ;
+        labels = id_filter (fun n _ -> f n) ptg.labels  
+    };;
       
 (* return a vertex only if the edge is unique *)
 let get_unique_target a d =
@@ -854,7 +889,14 @@ let map_of_pair_list_g xys =
     (fun map (x, y) -> (GateEqns.add) x y map)
     GateEqns.empty xys
 
-(* Gate, Source *)
+(* Gate, Source 
+ *
+ * (c_label * c_label * c_label) * c_label
+ *
+ * Meaning : inputs + gate -> new_gate
+ *
+ * FIXME not really reliable way to do it
+ * *)
 let gate_equations =
   map_of_pair_list_g [  
     (Z, Z, Nmos), Illegal;
@@ -942,8 +984,78 @@ let is_value (l:c_label) = match l with
   | Low  
   | Z  
   | Illegal  -> true
-  | _ -> false
+  | _        -> false
 
+
+let mux_func = function
+    | [Illegal;_;_] -> Illegal 
+    | [Z;_;_]    -> Z
+    | [High;a;_] -> a
+    | [Low;_;a ] -> a
+    | _ -> failwith "mux_func list wrong number arguments";;
+
+(* reduce MUX 
+ *
+ * @ptg      : the initial graph
+ * @mux_node : the multiplexer node
+ *
+ * @returns  : a new graph with values 
+ *             propagated through 
+ *             the node if possible
+ * *)
+let reduce_mux mux t =
+    let segde  = reverse_edges t.edges in 
+    (* 
+     * find the nodes that connects to the
+     * MUX gate
+     *)
+    let inputs = id_find mux segde     in 
+
+    (* FIXME could fail if no label ... *)
+    let names  = inputs 
+              |> List.map (fun x -> id_find x t.labels) 
+    in
+    let [i1;i2;i3]            = inputs in (* There are always 3 inputs values *)
+    let [Pin a; Pin b; Pin c] = names  in (* The ancestor of a MUX gate are always Pins *)
+    (* 
+     * order the inputs respecting the pin 
+     * numbers 
+     *)
+    let ordered_inputs = zip [a;b;c] inputs 
+               |> List.sort (fun k l -> compare (fst k) (fst l))
+               |> List.map snd
+    in
+    (* 
+     * Now get the nodes attached to each pin number 
+     * with their associated values 
+     *)
+    let nodes_and_val = ordered_inputs 
+                     |> List.map (fun x -> get_unique_target x segde)
+                     |> List.map (fun n -> (n, id_find n t.labels)) 
+    in
+    (* Now check if the values are real values ... *)
+    let nodes,values = List.split nodes_and_val in  
+    if List.for_all is_value values then 
+        (* propagation through the MUX gate *)
+        let new_value = mux_func values in 
+
+        (* remove the old nodes *)
+        let to_remove = inputs @ nodes  in
+        let rm_func x = not (List.mem x to_remove) in 
+        let new_graph = filter_nodes rm_func t in 
+
+        (* creating the new graph *)
+        {
+            new_graph with
+            labels = new_graph.labels 
+                  |> id_remove mux
+                  |> id_add mux new_value
+        }
+    else
+        t;;
+
+
+(* what is a ? I think it's the node *)
 let reduce_constant a (t:pTG) : pTG =
   let segde = reverse_edges t.edges in 
   try
@@ -1017,8 +1129,10 @@ let reduce_constant a (t:pTG) : pTG =
                                 |> id_add a v} in
       let s = Printf.sprintf "Join reduced from %d with %d and %d!" a a1 a2 in
       report s t; t
-      else t
-  with _ -> t
+    else if gate = Mux then
+        reduce_mux a t
+    else t
+  with _ -> t (* not safe ... AT ALL ! *)
 
 (* Propagate a constant through a fork. 
    This rule can be generalised to the whole power of the diagonal rule, 
@@ -1254,6 +1368,16 @@ let rec mark segde visited = function (* on the fringe *)
 let mark_and_sweep t =
   let segde = reverse_edges t.edges in
   let reachable = mark segde [] (t.outs) in 
+  let filter_func x = List.mem x reachable in 
+  let t = filter_nodes filter_func t in 
+  let s = "Garbage collect!" in
+  report s t;
+  t;;
+
+(* This part of the code is no longer needed
+ * merged with the more general function 
+ * « filter_nodes »
+  
   let select_reachable = List.filter (fun x -> List.mem x reachable) in 
   let update_map m = 
       m
@@ -1282,6 +1406,9 @@ let mark_and_sweep t =
   report s t;
   t
     
+*)
+
+
 (* Apply all the rules to all the nodes *)
 let rewrite_tpg' rules t =
   let allnodes = t.ins @ t.outs @ t.pre @ t.post @ t.main in
