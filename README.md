@@ -51,16 +51,12 @@ The basic circuits are the following ones
 4. The trace operator
 5. The switch operator
 
-### Variable binding
+### Linking 
 
-Input variables and output variables
+...
 
-### Linking
+# Things that would be done differently 
 
-Linking is easy !
-
-## Type system
-
-Description of the type system
-
-## Writing complex diagrams
+1. Separate labelling from meaning : a label is just a string
+2. Do all the stuff directly on liDAGS rather than the PTG version
+3. Use name translation rather than a global ref count (leads to mistakes)

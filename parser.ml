@@ -4,6 +4,24 @@
  *
  * Aliaume Lopez
  *
+ *
+ * This file contains 
+ * 1. small functions to deal with characters 
+ * 2. a small parser combinator type over strings 
+ * 3. minimal definition of basic parser 
+ * 4. parser of constants of the language
+ * 5. parser directly derived from the grammar in the PDF
+ *    (set of mutually recursive functions over strings)
+ *
+ * The goal of this file is to go from a « good » (well-formated)
+ * string to an AST (circ) 
+ * 
+ * TODO
+ *
+ * a) Don't use the (===) and (|||) combinators 
+ * directly but rather use accumulating lists and 
+ * a function that generates a well balanced tree 
+ * 
  *)
 
 open Ast;;

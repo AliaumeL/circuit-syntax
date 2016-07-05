@@ -1,3 +1,12 @@
+(*
+ * compiler.ml
+ *
+ * Aliaume Lopez
+ *
+ * The compile step to go from a circ (AST) to a liDAG (graph)
+ * using a typed circuit as an intermediate phase
+ *
+ *)
 open Ast;;
 open Dags;;
 open Typesystem;;

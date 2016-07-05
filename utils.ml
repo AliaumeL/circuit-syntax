@@ -1,10 +1,10 @@
 (****
- * Module de fonctions auxiliaires 
- * de traitement souvent utilisées 
+ * utils.ml
  *
  * Aliaume Lopez 
  *
- * Crée le : Mar 14 jui 2016 09:55:34 BST
+ * Set of ocaml utilities that are used 
+ * through the whole program. 
  *
  *)
 

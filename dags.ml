@@ -1,13 +1,28 @@
 (**
+ * dags.ml 
+ *
+ * Aliaume Lopez
  *
  * Internal representation for directed acyclic graphs
  * representing the graphical semantics of the expressions
  *
- * Aliaume Lopez
+ * TODO 
+ *
+ * a) Have a map from Const label to meaning  
+ * b) Define clearly what a meaning _is_ (rules to reduce ?)
+ * c) Implement reduction directly in this file
+ * d) Switch to a more efficient representation of edges
+ * e) Build a general-purpose funciton to find patterns in 
+ *    a dag
+ *
+ *
  *
  *)
 
 open Utils;;
+
+(** list monadic bind *)
+let (>>=) l f = List.concat (List.map f l);;
 
 
 type nid = int;;
@@ -22,6 +37,21 @@ let map_port f (a,b) = (f a, b)
  * A liDAG with 
  * a placeholder for information such as 
  * node type information  
+ *
+ * We don't use the placeholder anywhere yet.
+ * maybe it could be replacing the « label » part
+ *
+ * The lists order are important.
+ *
+ * iports : the order of inputs
+ * oports : the order of outputs
+ *
+ * nodes : ordered by the « compare » function 
+ * edges : idem 
+ * labels : idem 
+ * obinders : idem
+ * ibinders : idem
+ *
  *)
 type 'a lidag = {
     (* input nodes, with an optionnal port *)
@@ -36,6 +66,17 @@ type 'a lidag = {
      * n > 0 => n ports 
      *)
     nodes    : (nid * int * int) list; 
+
+    (* edges in the liDAG 
+     *
+     * all the edges starting from a
+     * node in obinders 
+     * are going to a node in ibinders 
+     *
+     * IE: the trace nodes are only 
+     * used to do trace 
+     *
+     *)
     edges    : (port * port) list;
     labels   : (nid * label) list;
 
@@ -66,6 +107,10 @@ let anonym_link ~start:a ~finish:b = ((a,None), (b,None));;
 
 (** 
  * Change the node ids in a consistent way 
+ * by using f over each ID in the graph
+ *
+ * NOTE it is recommended for f to be 
+ * injective 
  *)
 let mapids f dag = {
     iports   = dag.iports   |> List.map (map_port f);
@@ -93,6 +138,10 @@ let maxid dag = match dag.nodes with
  * Merge two graphs 
  * into one 
  * by composition
+ * 
+ * A small case analysis finds 
+ * the graph with the smallest amount 
+ * of nodes to avoid too much renaming
  *)
 let sequence ~first:p ~second:q = 
     let mp = maxid p in 
@@ -126,6 +175,9 @@ let sequence ~first:p ~second:q =
  * Compose two graph using 
  * parallel composition 
  *
+ * A small case analysis finds 
+ * the graph with the smallest amount 
+ * of nodes to avoid too much renaming
  *)
 let parallel ~top:p ~bottom:q = 
     let mp = maxid p in 
@@ -151,8 +203,16 @@ let parallel ~top:p ~bottom:q =
           obinders = nq.obinders @ p.obinders             ;
         };;
 
-let (>>=) l f = List.concat (List.map f l);;
 
+
+(** 
+ * Compilation of the link operator as defined 
+ * in the PDF.
+ *
+ * The operations are exactly the translation 
+ * of the PDF description, replacing sets 
+ * with ordered lists without repetitions
+ *)
 let link ~vars ~dag:g = 
     let m  = maxid g in 
 
@@ -254,6 +314,18 @@ let identity ~number =
         obinders = [];
     };;
 
+
+(***** REWRITING RULES for testing *****)
+(*
+let rewrite_fix ~g:g1 =  
+    let g2   = mapids (fun x -> x + maxid g) g1 in 
+    let ipts = (* Construire les nouveaux iports *)
+    let new_arrs = (* Retirer les arrêtes de trace *) 
+    {
+        iports = g1.iports;
+    };;
+*)
+    
 (***** COMBINATORS *****)
 let rec parallels = function
     | []  -> empty_dag

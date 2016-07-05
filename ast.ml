@@ -1,10 +1,12 @@
 (********
  *
- * MODULE pour l'arbre de syntaxe abstraite
+ * ast.ml 
  *
  * Aliaume Lopez
  *
- * Crée le : Mar 14 jui 2016 09:48:30 BST
+ * This module contains the type definition 
+ * and smart constructors for the abstract 
+ * syntax tree of circuits. 
  *
  *) 
 

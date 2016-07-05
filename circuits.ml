@@ -51,7 +51,8 @@ let height = 10  (* the default height of a 'tile' *)
 let gap = 5      (* gap between tiles when linking or stacking *)
 let vn = ref 1   (* provide fresh variable number *)
 
-type gate = Hg | Lg | Dg | Fg | Jg | Xg | Tg | Zg | Ng | Pg | Wg
+type gate = Hg | Lg | Dg | Fg | Jg | Xg | Tg | Zg | Ng | Pg | Wg 
+    (* TODO | ANDg | ORg | MULTg *)
 
 let string_of_gate (g : gate) = match g with
   | Hg  -> "H" (* high in        *)
@@ -65,6 +66,11 @@ let string_of_gate (g : gate) = match g with
   | Ng  -> "N" (* n-mos          *)
   | Pg  -> "P" (* p-mos          *)
   | Wg  -> "W" (* wait (delay)   *)
+  (* TODO 
+   * | ANDg -> "AND"
+   * | ORg  -> "OR"
+   * | MULTg -> "MULT"
+   *)
 
 let arity = function 
   |  Hg -> (0, 1)
@@ -78,6 +84,11 @@ let arity = function
   |  Ng -> (2, 1)
   |  Pg -> (2, 1)
   |  Wg -> (1, 1)
+  (* TODO 
+   * | ANDg -> (2,1)
+   * | ORg  -> (2,1)
+   * | MULTg -> (3,1) 
+   *)
 													   
 type diag =
   | Unit 
@@ -134,6 +145,13 @@ let l = Const Lg
 let z = Const Zg
 let t = Const Tg
 let w = Const Wg
+(* TODO 
+ * let a = Const ANDg
+ * let o = Const ORg
+ * let m = Const MULTg
+ *)
+
+
   
 let rec mki = function
   | 0 -> Unit
@@ -293,7 +311,10 @@ let map_of_pair_list xys =
 (* this function does not preserve order FIXME *)
 let map_to_name_list dict =
     id_fold (fun _ x xs -> x :: xs) dict [] ;;
-
+(* FIXED version of the above function 
+ * is exactly the « refresh » function 
+ * below ... 
+ *)
 let map_to_name_list_aliaume (l : int list) (dict : int IntegerDictionary.t) = 
     List.map (fun x -> id_find x dict) l;;
                
@@ -321,6 +342,7 @@ type c_label =
   | Box 
   | Pin of int 
   | Wait
+(* TODO : add gates AND / OR / MULT *)
   
 let string_of_label (l:c_label) = match l with
   | High       -> "H"
@@ -392,7 +414,15 @@ let rec dot_of_edge x ys label_map =
         with Some d -> (string_of_label d) ^ (string_of_int y)
            | None   -> string_of_int y in 
       s ^ ("  " ^ l1 ^ " -> " ^ l2 ^ ";\n")) "" ys
-  
+ 
+(* TODO 
+ *
+ * 1. Les noeuds inutiles doivent être des points
+ * 2. Les noeuds doivent avoir des formes différentes
+ * 3. Les noeuds doivent êtres groupés sur différents niveaux 
+ *    via des subgraphs de graphviz
+ *
+ *)
 let dot_of_ptg ptg =
   "digraph G {\n  rankdir=LR\n" 
   ^ "{ rank = min; \n"
@@ -443,7 +473,14 @@ let report s t = match !verbose with
    these PTGs linearly. If need be they must be replicated using this
    function below *)
 
-(* FIXME plante ... *) 
+(* FIXME plante parfois ...
+ *
+ * La liste contient un noeud qui n'a pas 
+ * été traduit .. 
+ *
+ * Refresh = map_..._aliaume !
+ *
+ * *) 
 let rec refresh xs rdic =
   List.map (fun x -> id_find x rdic) xs
 
@@ -1091,16 +1128,13 @@ let unfold_ptg (t1:pTG) =
   } in
 
   (** forking the inputs **)
-  report "Unfolded-No-forks " t_no_forks;
   let test_prout = zip n_inputs (zip t1.ins t2.ins) in  
-  List.iter (fun (x,(y,z)) -> print_string "("; print_int x; print_string ","; print_int y; print_string "," ; print_int z; print_string ")") test_prout;
 
   let t_forks  = mk_fork test_prout t_no_forks in 
 
-  report "Unfolded-One-forks " t_forks;
   let test_prout = zip t1.post (zip t2.pre n_posts) in  
-  List.iter (fun (x,(y,z)) -> print_string "("; print_int x; print_string ","; print_int y; print_string "," ; print_int z; print_string ")") test_prout;
   let t_forks  = mk_fork test_prout t_forks in 
+
   report "Unfolded " t_forks;
   t_forks
 
