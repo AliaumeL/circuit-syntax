@@ -478,8 +478,8 @@ let dot_of_ptg ptg =
   ^ (List.map (fun x -> (string_of_int x) ^ "; ") (ptg.outs @ ptg.post) |> String.concat "")
   ^ "};\n" 
   ^ (id_fold (fun x ys s -> (dot_of_edge x ys ptg.labels) ^ s) ptg.edges "")
-  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[shape = diamond];\n" ^ s) "" (ptg.ins @ ptg.outs))
-  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[color = grey];\n" ^ s) "" (ptg.pre @ ptg.post))
+  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[shape = diamond; label=\"\"];\n" ^ s) "" (ptg.ins @ ptg.outs))
+  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[color = red; width=0.1;shape = point];\n" ^ s) "" (ptg.pre @ ptg.post))
   ^ (List.fold_left (fun s v ->
       match id_find' v ptg.labels
       with None         -> (string_of_int v) ^ "[color = black; shape=point];\n" ^ s
@@ -1656,6 +1656,7 @@ let convert_lab = function
                    | "PMOS" -> Pmos
                    | "HIGH" -> High
                    | "LOW"  -> Low
+                   | "WAIT" -> Wait
                    |   _    -> Box
             end;;
 
@@ -1880,8 +1881,8 @@ let run =
   dump_index := 2;
   verbose := Verbose;
   (* run_ternary mux "mux" *)
-  run_test (ptg_of_dag example_expr) "test-aliaume" 6;
-  (* run_nullary ((h ** h) $$ bsm) "berry-mendler" 5; *)
+  (* run_test (ptg_of_dag example_expr) "test-aliaume" 6; *)
+  run_nullary ((h ** h) $$ bsm) "berry-mendler" 5;
   let dt = Sys.time () -. t0 in
   Printf.printf "Running time %f out of which reversing %f.\n" dt !bmre
     
