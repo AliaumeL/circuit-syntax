@@ -388,11 +388,13 @@ let label_of_const (g : gate) = match g with
 type pTG   =
   {
 (* The nodes -- five disjoint sets *)
+(* added a 6th to be able to handle times *)
     ins    : int list;
     outs   : int list;
     pre    : int list;
     main   : int list;
     post   : int list;
+    times  : int list;
     edges  : int list IntegerDictionary.t;
     segde  : (int list IntegerDictionary.t) option; (* ugh *)
     labels : c_label IntegerDictionary.t; 
@@ -590,6 +592,7 @@ let reverse_ptg (t : pTG) : pTG =
     pre    = t.post ;
     post   = t.pre ;
     main   = t.main ;
+    times   = t.times ;
     edges  = reverse_edges t.edges ;
     segde  = None ;
     labels = t.labels ;
@@ -602,11 +605,12 @@ let reverse_ptg (t : pTG) : pTG =
  * because of the remark above 
  *)
 let replicate ptg =
-  let ins_new  = new_name_map ptg.ins  in
-  let outs_new = new_name_map ptg.outs in
-  let pre_new  = new_name_map ptg.pre  in
-  let main_new = new_name_map ptg.main in
-  let post_new = new_name_map ptg.post in
+  let ins_new  = new_name_map  ptg.ins  in
+  let outs_new = new_name_map  ptg.outs in
+  let pre_new  = new_name_map  ptg.pre  in
+  let main_new = new_name_map  ptg.main in
+  let post_new = new_name_map  ptg.post in
+  let times_new = new_name_map ptg.times in
   (* the total function from the old names 
    * to the new ones 
    *)
@@ -614,11 +618,13 @@ let replicate ptg =
                          |> id_merge merger_v pre_new
                          |> id_merge merger_v main_new
                          |> id_merge merger_v post_new
+                         |> id_merge merger_v times_new 
   in 
   { ins    = map_to_name_list_aliaume ptg.ins  all_new;
     outs   = map_to_name_list_aliaume ptg.outs all_new;
     pre    = map_to_name_list_aliaume ptg.pre  all_new;
     main   = map_to_name_list_aliaume ptg.main all_new;
+    times  = map_to_name_list_aliaume ptg.times all_new;
     post   = map_to_name_list_aliaume ptg.post all_new;
     labels = refresh_labels ptg.labels all_new;
     edges  = refresh_edges ptg.edges all_new;
@@ -642,6 +648,7 @@ let (test_ptg : pTG) =
     pre    = [a1];
     main   = [a2; a3];
     post   = [a4];
+    times  = [];
     edges  = es;
     labels = ls;
     segde  = None;
@@ -651,12 +658,14 @@ let test_ptg' = replicate test_ptg
 
 (* We assume the two graphs don't share names *)				  
 let tensor_ptg ptg1 ptg2 : pTG = 
+  assert (ptg1.times = [] && ptg2.times = []); (* times can only be normalised at the end *)
   {
     ins    = ptg1.ins  @ ptg2.ins;
     outs   = ptg1.outs @ ptg2.outs;
     pre    = ptg1.pre  @ ptg2.pre;
     main   = ptg1.main @ ptg2.main;
     post   = ptg1.post @ ptg2.post;
+    times  = [];
     edges  = id_merge merger_l ptg1.edges ptg2.edges;
     segde  = None;
     labels = id_merge merger_v ptg1.labels ptg2.labels;
@@ -664,6 +673,7 @@ let tensor_ptg ptg1 ptg2 : pTG =
 
 (* We assume the two graphs don't share names and |ptg1.outs|=|ptg2.ins| *)		  
 let compose_ptg ptg1 ptg2 : pTG =
+  assert (ptg1.times = [] && ptg2.times = []); (* times can only be normalised at the end *)
   let links =
     (zip ptg1.outs (List.map (fun x -> [x]) ptg2.ins))
     |> map_of_pair_list in 
@@ -673,6 +683,7 @@ let compose_ptg ptg1 ptg2 : pTG =
     pre    = ptg1.pre @ ptg2.pre;
     main   = ptg1.main @ ptg2.main @ ptg1.outs @ ptg2.ins;
     post   = ptg1.post @ ptg2.post;
+    times  = [];
     edges  = id_mergers
         [ptg1.edges; ptg2.edges; links];
     segde  = None;
@@ -692,6 +703,7 @@ let empty_ptg = {
   pre    = [];
   main   = [];
   post   = [];
+  times  = [];
   edges  = id_empty;
   segde  = None;
   labels = id_empty;
@@ -808,6 +820,7 @@ let filter_nodes ~func:f ~graph:ptg =
         pre   = select_reachable ptg.pre  ;
         post  = select_reachable ptg.post ;
         main  = select_reachable ptg.main ;
+        times = select_reachable ptg.times;
         (* Suppress the edges from non-reachable nodes 
          * AND the edges TO non-reachable nodes
          *)
@@ -1403,7 +1416,10 @@ let unfold_ptg (t1:pTG) =
                  @ t2.ins 
                  @ t2.main 
                  @ t2.post 
-                 @ t2.pre ;
+                 @ t2.pre 
+                 @ t2.times (* FIXME do something with the times from the copy *)
+                 ;
+    times = t1.times; (* we keep the first times for t1 the same *)
     edges = calcul_edges ; 
     segde = None;
     labels = (let l = id_merge merger_v t1.labels t2.labels in
@@ -1841,6 +1857,7 @@ let ptg_of_dag dag =
         pre    = []                   ;
         main   = ibind @ obind @inside @ pins_nodes     ;
         post   = []                   ;
+        times  = [];
         edges  = map_of_pair_list edges3 ;
         segde  = None                    ;
         labels = map_of_pair_list (labs3 @ pins_labels)  ;
