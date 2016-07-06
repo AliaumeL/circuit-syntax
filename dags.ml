@@ -56,8 +56,10 @@ let map_port f (a,b) = (f a, b)
 type 'a lidag = {
     (* input nodes, with an optionnal port *)
     iports   : port list;
+
     (* output nodes, with an optionnal port *)
     oports   : port list;
+
     (* all the internal nodes, with the number
      * of necessary input and output ports 
      * for the node 

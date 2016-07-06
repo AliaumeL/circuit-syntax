@@ -157,6 +157,7 @@ let circuit_of_name = function
     | "HIGH" -> const "HIGH" 0 1
     | "LOW"  -> const "LOW"  0 1
     | "MUX"  -> const "MUX"  3 1
+    | "BOT"  -> const "BOT"  0 1
     |  x  -> const x   1 1;;
 
 (**** THE GRAMMAR 

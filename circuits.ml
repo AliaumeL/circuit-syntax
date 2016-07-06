@@ -367,7 +367,7 @@ let string_of_label (l:c_label) = match l with
   | Nmos       -> "N"
   | Pmos       -> "P"
   | Box        -> "B"
-  | Pin n      -> "P" ^ (string_of_int n) ^ "_"
+  | Pin n      -> "P" ^ (string_of_int n)
   | Wait       -> "W"
   | Mux        -> "MUX"
 
@@ -478,12 +478,15 @@ let dot_of_ptg ptg =
   ^ (List.map (fun x -> (string_of_int x) ^ "; ") (ptg.outs @ ptg.post) |> String.concat "")
   ^ "};\n" 
   ^ (id_fold (fun x ys s -> (dot_of_edge x ys ptg.labels) ^ s) ptg.edges "")
-  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[shape = box];\n" ^ s) "" (ptg.ins @ ptg.outs))
+  ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[shape = diamond];\n" ^ s) "" (ptg.ins @ ptg.outs))
   ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[color = grey];\n" ^ s) "" (ptg.pre @ ptg.post))
   ^ (List.fold_left (fun s v ->
       match id_find' v ptg.labels
-      with None   -> (string_of_int v) ^ "[color = black];\n" ^ s
-         | Some l -> (string_of_label l) ^ (string_of_int v) ^ "[color = black];\n" ^ s) "" ptg.main)
+      with None         -> (string_of_int v) ^ "[color = black; shape=point];\n" ^ s
+         | Some (Pin x) -> (string_of_label (Pin x)) ^ (string_of_int v) ^ "[color = black;label=\"" ^ string_of_label (Pin x) ^ "\"];\n" ^ s
+         | Some Fork    -> (string_of_label Fork) ^ (string_of_int v)  ^ "[color = black; shape=point];\n" ^ s
+         | Some Join    -> (string_of_label Join) ^ (string_of_int v)  ^ "[color = black; shape=point];\n" ^ s
+         | Some l       -> (string_of_label l) ^ (string_of_int v) ^ "[shape = box; color = black;label=\"" ^ string_of_label l ^"\"];\n" ^ s) "" ptg.main)
   ^ "}\n"
 
 let ptg_to_file fname ptg =
@@ -1161,8 +1164,30 @@ let reduce_constant a (t:pTG) : pTG =
         reduce_mux a t
     else t
   with
-    Not_found -> t (* the argument given is not a gate ... *)
+    _ -> t;; (* the argument given is not a gate ... *)
 
+
+(**
+ *
+ * A function to remove labels from « false » 
+ * fork nodes (with only one output)
+ *
+ *)
+let update_fork_join_nodes node ptg = 
+    let is_real_multiple k l = match l with
+        | Fork -> 
+                if not (id_mem k ptg.edges) || List.length(id_find k ptg.edges) <= 1 then
+                    false
+                else true
+        | _    -> true
+    in
+    if id_mem node ptg.labels then
+        if is_real_multiple node (id_find node ptg.labels) then
+            ptg
+        else
+            { ptg with labels =  ptg.labels |> id_remove node }
+    else
+        ptg;;
 
 (* Propagate a constant through a fork. 
    This rule can be generalised to the whole power of the diagonal rule, 
@@ -1242,30 +1267,42 @@ let mk_fork (nodes : (int * (int * int)) list) t =
 let rec fork_to init nodes_list ptg = 
     match nodes_list with
         | []     -> ptg
+        | [t]    -> {
+            ptg with
+            edges = ptg.edges |> id_merge merger_l (map_of_pair_list [init, [t]])
+        }
         | t :: q -> 
-                let [rec_node;fork_node]  = new_names 2 in 
-                let new_graph = fork_to rec_node q ptg in  
+                let [fork_node] = new_names 1 in 
+                let new_graph = fork_to fork_node q ptg in  
+                let new_edges = [ (fork_node, [t]);
+                                  (init, [fork_node]) ]
+                in
                 { new_graph with
-                    main  = fork_node :: rec_node :: new_graph.main;
-                    edges = new_graph.edges |> id_add fork_node [t;rec_node]
-                         |> id_add init [fork_node];
+                    main  = fork_node :: new_graph.main;
+                    edges = new_graph.edges 
+                         |> id_merge merger_l (map_of_pair_list new_edges) ;
                     labels = new_graph.labels |> id_add fork_node Fork
                 };;
 
 
 (*** join n wires into one ***)
-let rec join_to final nodes_list ptg = 
+let rec join_to final nodes_list (ptg : pTG) = 
     match nodes_list with
         | []     -> ptg
+        | [t]    -> {
+            ptg with
+            edges = ptg.edges |> id_merge merger_l (map_of_pair_list [t, [final]])
+        }
         | t :: q -> 
-                let [rec_node;join_node]  = new_names 2 in 
-                let new_graph = join_to rec_node q ptg in  
+                let [join_node]  = new_names 1 in 
+                let new_graph = join_to join_node q ptg in  
+                let new_edges = [ (t, [join_node]);
+                                  (join_node, [final]) ]
+                in
                 { new_graph with
-                    main  = join_node :: rec_node :: new_graph.main;
+                    main  = join_node :: new_graph.main;
                     edges = new_graph.edges 
-                         |> id_add t [join_node]
-                         |> id_add rec_node [join_node] 
-                         |> id_add join_node [final];
+                         |> id_merge merger_l (map_of_pair_list new_edges) ;
                     labels = new_graph.labels |> id_add join_node Join 
                 };;
 
@@ -1479,6 +1516,7 @@ let rewrite_tpg t =
                 yank_constant;
                 reduce_constant;
                 fork;
+                update_fork_join_nodes; 
                 braid] t
 
 (*
@@ -1631,15 +1669,88 @@ let convert_lab = function
  *    (which is the bad part of the code)
  *
  * *)
+
+let trace_of_binders dag (ptg : pTG) =  
+    (* add the pre binding nodes to the ptg *)
+    let add_pre_binders (ptg : pTG) inode = (* function to add the pre_binders of a ibind node *)
+        let inputs = dag.edges |> List.filter (fun e -> fst (snd e) = inode)   
+                               |> List.map (fun e -> fst (fst e))
+        in
+        let pre_nodes = new_names (List.length inputs) in 
+        let new_graph = join_to inode pre_nodes ptg in
+        let new_edges = zip inputs (List.map (fun x -> [x]) pre_nodes) in 
+        { new_graph with 
+            pre   = pre_nodes @ new_graph.pre ;
+            edges = new_graph.edges 
+                 |> id_merge merger_l (map_of_pair_list new_edges)  
+        }
+    in
+    
+    (* this time we work using the edges inside the pTG
+     * because we linked the pre_nodes to 
+     * the obinder nodes during the construction, therefore,
+     * we can get the list of nodes to connect just using 
+     *
+     * id_find inode ptg.edges 
+     *)
+    let add_post_binder (ptg : pTG) inode = 
+        let connections = id_find inode ptg.edges in 
+        let new_graph   = { ptg with
+                                edges = ptg.edges 
+                                     |> id_remove inode
+        } in 
+        let post_nodes = new_names (List.length connections) in 
+        let new_graph2 = fork_to inode post_nodes new_graph  in 
+        let new_edges  = zip post_nodes (List.map (fun x -> [x])connections) in 
+        {
+            new_graph2 with
+            post = post_nodes @ new_graph2.post;
+            edges = new_graph2.edges 
+                 |> id_merge merger_l (map_of_pair_list new_edges)
+        }
+    in
+
+    (*
+     * Add the big fork from ibinder to the input variable 
+     * nodes 
+     *)
+    let fork_ibinder (ptg : pTG) inode = 
+        let connect = dag.edges |> List.filter (fun e -> fst (fst e) = inode)   
+                                |> List.map (fun e -> fst (snd e))
+        in
+        fork_to inode connect ptg
+    in
+
+    (*
+     * Add the big join from obinder to the outputs variable 
+     * nodes 
+     *)
+    let join_obinder (ptg : pTG) inode = 
+        let connect = dag.edges |> List.filter (fun e -> fst (snd e) = inode)   
+                                |> List.map (fun e -> fst (fst e))
+        in
+        join_to inode connect ptg
+    in
+
+    let folding a b c = List.fold_left a c b in 
+    ptg |> folding add_pre_binders dag.ibinders
+        |> folding add_post_binder dag.obinders
+        |> folding fork_ibinder    dag.ibinders
+        |> folding join_obinder    dag.obinders;;
+
 let ptg_of_dag dag =  
     (* Starts by ignoring all the additional information
-     * inside the dag
+     * inside the dag.
      *)
     let nodes  = dag.nodes  |> List.map (fun (x,y,z) -> x) in 
     let iport  = dag.iports |> List.map (fun (x,y) -> x)   in 
     let oport  = dag.oports |> List.map (fun (x,y) -> x)   in 
     let ibind  = dag.ibinders in
     let obind  = dag.obinders in 
+
+    (* the « inside nodes » of the DAG !!! Theses are NOT
+     * the inside nodes of the whole ptg
+     *)
     let inside = Utils.remove_list nodes (ibind @ obind) in
     
     (* Creating the input nodes and outputs nodes *)
@@ -1683,7 +1794,7 @@ let ptg_of_dag dag =
     in
 
     let find_pin_right n x = find_pin ~node:n ~pin:x ~pos:true  in 
-    let find_pin_left  n x = n in (* TODO arf arf arf *)
+    let find_pin_left  n x = n in (* There can be no pin for an output *)
 
     (* The edges trying to keep port information 
      * if the node specifies a port, we fetch the corresponding one 
@@ -1706,7 +1817,7 @@ let ptg_of_dag dag =
     (* The edges organised in an adjency list [complexity = awfull] 
      * NOTE don't forget the nodes from the ins and outs !
      **)
-    let edges3 = (pins_nodes @ ins @ outs @ nodes) 
+    let edges3 = (pins_nodes @ ins @ outs @ inside) (* we ignore edges for the ibinds/obinds ! *)
               |> List.map (fun x -> (x, get_neighbours x))
               |> List.filter (fun x -> not (snd x = []))
     in
@@ -1726,16 +1837,24 @@ let ptg_of_dag dag =
     let t = {
         ins    = ins                     ;
         outs   = outs                    ;
-        pre    = ibind                   ;
-        main   = inside @ pins_nodes     ;
-        post   = obind                   ;
+        pre    = []                   ;
+        main   = ibind @ obind @inside @ pins_nodes     ;
+        post   = []                   ;
         edges  = map_of_pair_list edges3 ;
         segde  = None                    ;
         labels = map_of_pair_list (labs3 @ pins_labels)  ;
     }
     in
     report "ALIAUME INIT" t;
-    t;;
+    
+    (* The current graph has NO trace (because edges for ibinds/obinds were 
+     * ignored)
+     *
+     * We now call the function to add them 
+     *)
+    let t2 = trace_of_binders dag t in
+    report "ALIAUME TRACED" t2;
+    t2;;
 
 
 let example_expr = 
