@@ -1238,6 +1238,53 @@ let mk_fork (nodes : (int * (int * int)) list) t =
                (fun e v -> id_add v Fork e)
                t.labels fork_nodes ; }
 
+(*** fork into n wires ***)
+let rec fork_to init nodes_list ptg = 
+    match nodes_list with
+        | []     -> ptg
+        | t :: q -> 
+                let [rec_node;fork_node]  = new_names 2 in 
+                let new_graph = fork_to rec_node q ptg in  
+                { new_graph with
+                    main  = fork_node :: rec_node :: new_graph.main;
+                    edges = new_graph.edges |> id_add fork_node [t;rec_node]
+                         |> id_add init [fork_node];
+                    labels = new_graph.labels |> id_add fork_node Fork
+                };;
+
+
+(*** join n wires into one ***)
+let rec join_to final nodes_list ptg = 
+    match nodes_list with
+        | []     -> ptg
+        | t :: q -> 
+                let [rec_node;join_node]  = new_names 2 in 
+                let new_graph = join_to rec_node q ptg in  
+                { new_graph with
+                    main  = join_node :: rec_node :: new_graph.main;
+                    edges = new_graph.edges 
+                         |> id_add t [join_node]
+                         |> id_add rec_node [join_node] 
+                         |> id_add join_node [final];
+                    labels = new_graph.labels |> id_add join_node Join 
+                };;
+
+(***
+ *
+ *
+ * There is no need to have this function 
+ * so complex. 
+ *
+ * The checking and duplication in case 
+ * of different cardinals for pre/post
+ * is unnecessary because it cannot happen
+ *
+ * (if it happens the graph is ill formed)
+ *
+ * NOTE the code is still valid with these checks 
+ * but just more complex
+ *
+ *)
 let unfold_ptg (t1:pTG) =
     (* If there is no trace ... then no need
      * to unfold it ...
@@ -1256,6 +1303,12 @@ let unfold_ptg (t1:pTG) =
    * new global post nodes 
    *)
   let n_posts     = new_names (List.length t1.post)  in
+  
+  (* Creating new names for the circuit's 
+   * « ghost » t1.post that will connect 
+   * to the copy's (t2) pre elements
+   *)
+  let n_pre_pre   = new_names (List.length t1.post)  in
 
   (* Creating new nodes that will be labeled to _|_
    * used to ignore the output of the first graph t1
@@ -1274,14 +1327,22 @@ let unfold_ptg (t1:pTG) =
 
   let remove_feedback = fun e -> List.fold_left (fun e v -> id_remove v e) e (t1.post @ t2.post) in 
 
-  let new_feedback    = zip n_posts (List.map (fun x -> [x]) t1.pre)      in  
+  let new_feedback    = zip n_posts t1.post 
+                     |> List.map (fun (new_p,old_p) -> 
+                             (new_p, id_find old_p t1.edges))
+  in
 
+  let new_false_feedback = zip n_pre_pre t2.post 
+                     |> List.map (fun (new_p,old_p) -> 
+                             (new_p, id_find old_p t2.edges))
+  in
 
   let calcul_edges    = id_merge merger_l t1.edges t2.edges
                      |> remove_feedback 
                      |> id_merge merger_l (map_of_pair_list ignore_outs_e)
                      |> id_merge merger_l (map_of_pair_list ignore_post_e)
                      |> id_merge merger_l (map_of_pair_list new_feedback) 
+                     |> id_merge merger_l (map_of_pair_list new_false_feedback) 
   in
 
   (*
@@ -1290,11 +1351,12 @@ let unfold_ptg (t1:pTG) =
    *)
   let t_no_forks = 
   { ins  = n_inputs  ; (* the new set of input nodes *)
-    outs = t2.outs   ; (* keep the outs of t2 *) 
-    pre  = t1.pre    ; (* keep the pre of t1 *)
-    post = n_posts   ; (* the new post nodes *)
+    outs = t2.outs   ; (* keep the outs of t2        *) 
+    pre  = t1.pre    ; (* keep the pre of t1         *)
+    post = n_posts   ; (* the new post nodes         *)
     main = ignore_outs 
                  @ ignore_post 
+                 @ n_pre_pre
                  (* the internal nodes comming from t1 *)
                  @ t1.ins  
                  @ t1.outs
@@ -1318,7 +1380,7 @@ let unfold_ptg (t1:pTG) =
 
   let t_forks  = mk_fork test_prout t_no_forks in 
 
-  let test_prout = zip t1.post (zip t2.pre n_posts) in  
+  let test_prout = zip t1.post (zip n_pre_pre n_posts) in  
   let t_forks  = mk_fork test_prout t_forks in 
 
   report "Unfolded " t_forks;
@@ -1403,41 +1465,6 @@ let mark_and_sweep t =
   let s = "Garbage collect!" in
   report s t;
   t;;
-
-(* This part of the code is no longer needed
- * merged with the more general function 
- * « filter_nodes »
-  
-  let select_reachable = List.filter (fun x -> List.mem x reachable) in 
-  let update_map m = 
-      m
-      |> id_mapi (fun n arrs -> 
-        if List.mem n reachable then 
-            select_reachable arrs 
-        else
-            [])
-      |> id_filter (fun n arrs -> arrs <> []) 
-  in
-  let t = {
-    ins   = select_reachable t.ins ;
-    outs  = select_reachable t.outs ;
-    pre   = select_reachable t.pre ;
-    post  = select_reachable t.post ;
-    main  = select_reachable t.main ;
-    (* Suppress the edges from non-reachable nodes 
-     * AND the edges TO non-reachable nodes
-     *)
-    edges = update_map t.edges; 
-    segde  = None ;
-    labels = id_filter (fun n _ -> List.mem n reachable) t.labels  
-  }
-  in
-  let s = "Garbage collect!" in
-  report s t;
-  t
-    
-*)
-
 
 (* Apply all the rules to all the nodes *)
 let rewrite_tpg' rules t =
