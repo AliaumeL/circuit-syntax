@@ -319,9 +319,6 @@ let map_of_pair_list xys =
   List.fold_left
     (fun map (x, y) -> id_add x y map) id_empty xys
 
-(* this function does not preserve order FIXME *)
-let map_to_name_list dict =
-    id_fold (fun _ x xs -> x :: xs) dict [] ;;
 (* FIXED version of the above function 
  * is exactly the « refresh » function 
  * below ... 
@@ -482,6 +479,7 @@ let dot_of_ptg ptg =
   ^ (id_fold (fun x ys s -> (dot_of_edge x ys ptg.labels) ^ s) ptg.edges "")
   ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[shape = diamond; label=\"\"];\n" ^ s) "" (ptg.ins @ ptg.outs))
   ^ (List.fold_left (fun s v -> (string_of_int v) ^ "[color = red; width=0.1;shape = point];\n" ^ s) "" (ptg.pre @ ptg.post))
+  ^ (List.fold_left (fun s v -> (string_of_label Wait) ^ (string_of_int v) ^ "[shape= box; color=gray; label=\"DELTA\"];\n" ^ s) "" ptg.times)
   ^ (List.fold_left (fun s v ->
       match id_find' v ptg.labels
       with None         -> (string_of_int v) ^ "[color = black; shape=point];\n" ^ s
@@ -1417,7 +1415,7 @@ let unfold_ptg (t1:pTG) =
                  @ t2.main 
                  @ t2.post 
                  @ t2.pre 
-                 @ t2.times (* FIXME do something with the times from the copy *)
+                 @ t2.times (* CURRENT TODO FIXME do something with the times from the copy *)
                  ;
     times = t1.times; (* we keep the first times for t1 the same *)
     edges = calcul_edges ; 
@@ -1652,6 +1650,78 @@ let run_ternary gate name n =
 
 
 
+(*******
+ * CURRENT 
+ *
+ * Conversion from a pTG to a pTG with
+ * normal form times 
+ *
+ * The times are IN FRONT of the circuit 
+ * « moralement » 
+ *
+ *)
+let normal_timed_form ptg =  
+    (* For each wait node in G called x
+     * Remove x from the main nodes
+     * Add x to the times nodes
+     * For each node y connected to x (y->x)
+     * if y is in PRE : do nothing
+     * if y is in INS : do nothing
+     * otherwise : remove the edge y->x 
+     *             add two nodes p and q
+     *             and edges y->p->q->x
+     *             with p in POST and q in PRE
+     *)
+    (* NOTE the edges must be reversed to calculate 
+     * pre-images of nodes by the neighbour function
+     *)
+    let reversed    = reverse_edges ptg.edges in 
+    let added_post = ref [] in 
+    let added_pre  = ref [] in 
+    let add_post x = added_post := x :: !added_post in 
+    let add_pre  x = added_pre := x :: !added_pre in 
+    let compose f g x = f (g x) in 
+    let wait_nodes = ptg.labels 
+                  |> id_filter (fun _ x -> x = Wait)
+                  |> (fun x -> id_fold (fun x _ y -> x :: y) x [])
+    in
+    (* the inner loop's body *)
+    let modify_edges delay_node other_node edges = 
+        if List.mem other_node ptg.pre || List.mem other_node ptg.ins then 
+            edges
+        else
+            let [a1;a2] = new_names 2 in 
+            add_post a1;
+            add_pre  a2;
+            edges |> id_rem_occ other_node delay_node 
+                  |> id_merge merger_l (map_of_pair_list [other_node, [a1]])
+                  |> id_add a1         [a2]
+                  |> id_add a2         [delay_node] 
+    in
+    (* the main loop's body *)
+    let run_node delay_node edges = 
+        let pre_images = id_find_option delay_node reversed in 
+        match pre_images with
+            | None   -> edges
+            | Some l -> l |> List.map (modify_edges delay_node)
+                          |> List.fold_left compose (fun x -> x)
+                          |> (fun x -> x edges)
+    in
+    (* now apply the algorithm *)
+    let new_edges = wait_nodes
+                 |> List.map run_node
+                 |> List.fold_left compose (fun x -> x)
+                 |> (fun x -> x ptg.edges)
+    in
+    {
+        ptg with
+        edges = new_edges;
+        pre   = !added_pre @ ptg.pre; 
+        post  = !added_post @ ptg.post; 
+        main  = Utils.remove_list ptg.main wait_nodes;
+        times = wait_nodes;
+    };;
+
 (******** ALIAUME HOOK INTO THE CODE **********)
 
 open Dags;;
@@ -1872,7 +1942,9 @@ let ptg_of_dag dag =
      *)
     let t2 = trace_of_binders dag t in
     report "ALIAUME TRACED" t2;
-    t2;;
+    let t3 = normal_timed_form t2 in 
+    report "ALIAUME TIME FORMED" t3;
+    t3;;
 
 
 let example_expr = 
@@ -1898,8 +1970,8 @@ let run =
   dump_index := 2;
   verbose := Verbose;
   (* run_ternary mux "mux" *)
-  (* run_test (ptg_of_dag example_expr) "test-aliaume" 6; *)
-  run_nullary ((h ** h) $$ bsm) "berry-mendler" 5;
+  run_test (ptg_of_dag example_expr) "test-aliaume" 5;
+  (* run_nullary ((h ** h) $$ bsm) "berry-mendler" 5; *)
   let dt = Sys.time () -. t0 in
   Printf.printf "Running time %f out of which reversing %f.\n" dt !bmre
     
