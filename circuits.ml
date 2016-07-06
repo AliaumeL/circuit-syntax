@@ -1373,7 +1373,9 @@ let unfold_ptg (t1:pTG) =
   let ignore_outs_e   = zip t1.outs (List.map (fun x -> [x]) ignore_outs) in 
   let ignore_post_e   = zip t2.post (List.map (fun x -> [x]) ignore_post) in 
 
-  let remove_feedback = fun e -> List.fold_left (fun e v -> id_remove v e) e (t1.post @ t2.post) in 
+  let remove_feedback = fun e -> 
+      List.fold_left (fun e v -> id_remove v e) e (t1.post @ t2.post) 
+  in 
 
   let new_feedback    = zip n_posts t1.post 
                      |> List.map (fun (new_p,old_p) -> 
@@ -1435,8 +1437,109 @@ let unfold_ptg (t1:pTG) =
   let t_forks  = mk_fork test_prout t_forks in 
 
   report "Unfolded " t_forks;
-  t_forks
+  t_forks;;
 
+(***
+ *
+ * CURRENT
+ *
+ * Create a function that 
+ *    fetches all the « inputs » 
+ *    from main 
+ *    all the nodes that are not from main and 
+ *    goes to main 
+ * 
+ * Duplicate the graph 
+ *
+ * Fetch the « inputs », categorize them 
+ *  1. timed inputs
+ *  2. non-timed inputs
+ *
+ * For the first graph, 
+ *  replace all the timed inputs with bottom
+ *  connect all the non timed inputs to the ...
+ *
+ * For the second graph,
+ *
+ * Join the outputs of the two graphs 
+ *
+ *)
+let find_pseudo_inputs ptg = 
+    (* finding the pseudo-inputs of 
+     * the graph
+     *
+     * the pseudo-inputs are the nodes 
+     * connected to feedback nodes
+     * 
+     *)
+    ptg.pre 
+        |> List.map (fun x -> id_find x ptg.edges) 
+        |> List.concat;;
+
+let split_inputs pseudo ptg = 
+    (*
+     * Separate the delayed pseudo inputs
+     * from the non-delayed ones
+     *)
+    let is_delayed node =  
+        match id_find_option node ptg.edges with 
+            | Some [t] -> (* if it is delayed, only one delay node after him *)
+                    begin
+                        match id_find_option t ptg.labels with
+                            | Some Wait -> true
+                            | _         -> false
+                    end
+            |    _     -> false (* otherwise it is NOT delayed at all (by construction) *) 
+    in
+    List.partition is_delayed pseudo;;
+
+(**
+ * The actual reducing times function
+ *
+ * NOTE It assumes that there is NO feedback
+ * loop, but that the PRE nodes can 
+ * be used as « pseudo-inputs » 
+ *
+ * It takes one pTG with no feedback loop
+ * and creates a new pTG with no feedback loop
+ * expanded using the delay rule
+ *
+ * a) the inner graph is copied 
+ * b) one is fed with _|_ and the inputs
+ * c) the other one is the other way around
+ * d) in the end post nodes of the copy are 
+ * cloned 
+ * e) pre nodes distributes to 
+ *    pre nodes of the two copies  
+ * f) input nodes distributes to input nodes
+ *    of the two copies
+ *
+ *)
+let reduce_times ptg1 =
+    let ptg2 = replicate ptg1 in 
+
+    (* First thing is to know where are the pseudo inputs *)
+    (* rin_del = real_input_delayed
+     * rin_dir = real_input_direct
+     *
+     * pin_del = pseudo_input_delayed
+     * pin_dir = pseudo_input_direct
+     *)
+    let (rin_del1,rin_dir1) = split_inputs ptg1.ins ptg1 in 
+    let (rin_del2,rin_dir2) = split_inputs ptg2.ins ptg2 in 
+    
+    let (pin_del1,pin_dir1) = 
+        split_inputs (find_pseudo_inputs ptg1) ptg1 in 
+    let (pin_del2,pin_dir2) = 
+        split_inputs (find_pseudo_inputs ptg2) ptg2 in 
+    
+    (* Then we create the necessary bottoms *)
+    (* TODO *)
+
+    ();;
+
+
+  
 (* Reduce a dangling node 
    Obs: We don't handle braids and identity here.
         They are handled elsewhere in separate rules. *)
@@ -1651,7 +1754,6 @@ let run_ternary gate name n =
 
 
 (*******
- * CURRENT 
  *
  * Conversion from a pTG to a pTG with
  * normal form times 
