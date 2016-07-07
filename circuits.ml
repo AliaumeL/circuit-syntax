@@ -421,11 +421,12 @@ let pp_ptg t =
     let pn  = print_newline in
     let soi = string_of_int in 
     ps "BEGIN\n";
-        ps "\tINS  : "; t.ins  |> List.map soi |> String.concat ", " |> ps; pn ();
-        ps "\tOUTS : "; t.outs |> List.map soi |> String.concat ", " |> ps; pn ();
-        ps "\tPRE  : "; t.pre  |> List.map soi |> String.concat ", " |> ps; pn ();
-        ps "\tPOST : "; t.post |> List.map soi |> String.concat ", " |> ps; pn ();
-        ps "\tMAIN : "; t.main |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tINS  : "; t.ins   |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tOUTS : "; t.outs  |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tPRE  : "; t.pre   |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tPOST : "; t.post  |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tMAIN : "; t.main  |> List.map soi |> String.concat ", " |> ps; pn ();
+        ps "\tTIME : "; t.times |> List.map soi |> String.concat ", " |> ps; pn ();
         ps "\tEDGES\n";
             t.edges 
             |> IntegerDictionary.iter (fun n arrs -> 
@@ -583,6 +584,11 @@ let reverse_edges (e : e_type) =
       ) e id_empty in
   let dt = Sys.time () -. t0 in bmre := !bmre +. dt;
   e'
+
+let calcul_revresed_edges ptg = 
+    { ptg with
+        segde = Some (reverse_edges ptg.edges) 
+    };;
 
 let reverse_ptg (t : pTG) : pTG =
   { ins    = t.outs ;
@@ -1274,6 +1280,24 @@ let mk_fork (nodes : (int * (int * int)) list) t =
                (fun e v -> id_add v Fork e)
                t.labels fork_nodes ; }
 
+(* Create and add an n-ary join to a PTG *)
+let mk_join (nodes : (int * (int * int)) list) t = 
+    let n = List.length nodes in 
+    let join_nodes = new_names n in 
+    {
+        t with
+        main = join_nodes @ t.main;
+        edges = List.fold_left 
+                (fun e (vf, (i1, (i2,i3))) -> 
+                    e |> id_add i2 [vf]
+                      |> id_add i3 [vf]
+                      |> id_add vf [i1])
+                t.edges (zip join_nodes nodes);
+        labels = List.fold_left 
+                 (fun e v -> id_add v Join e)
+                 t.labels join_nodes ;
+    };;
+
 (*** fork into n wires ***)
 let rec fork_to init nodes_list ptg = 
     match nodes_list with
@@ -1317,6 +1341,361 @@ let rec join_to final nodes_list (ptg : pTG) =
                     labels = new_graph.labels |> id_add join_node Join 
                 };;
 
+(*******
+ *
+ * Conversion from a pTG to a pTG with
+ * normal form times 
+ *
+ * The times are IN FRONT of the circuit 
+ * « moralement » 
+ *
+ *)
+let normal_timed_form ptg =  
+    (* For each wait node in G called x (not already a time node)
+     * Remove x from the main nodes
+     * Add x to the times nodes
+     * For each node y connected to x (y->x)
+     * if y is in PRE : do nothing
+     * if y is in INS : do nothing
+     * otherwise : remove the edge y->x 
+     *             add two nodes p and q
+     *             and edges y->p->q->x
+     *             with p in POST and q in PRE
+     *)
+    (* NOTE the edges must be reversed to calculate 
+     * pre-images of nodes by the neighbour function
+     *)
+    let reversed    = reverse_edges ptg.edges in 
+    let added_post = ref [] in 
+    let added_pre  = ref [] in 
+    let add_post x = added_post := x :: !added_post in 
+    let add_pre  x = added_pre  := x :: !added_pre  in 
+    let compose f g x = f (g x) in 
+    let wait_nodes = ptg.main
+                  |> List.filter (fun x -> id_mem x ptg.labels && id_find x ptg.labels = Wait)
+    in
+    (* the inner loop's body *)
+    let modify_edges delay_node other_node edges = 
+        if List.mem other_node ptg.pre || List.mem other_node ptg.ins then 
+            edges
+        else
+            let [a1;a2] = new_names 2 in 
+            add_post a1;
+            add_pre  a2;
+            edges |> id_rem_occ other_node delay_node 
+                  |> id_merge merger_l (map_of_pair_list [other_node, [a1]])
+                  |> id_add a1         [a2]
+                  |> id_add a2         [delay_node] 
+    in
+    (* the main loop's body *)
+    let run_node delay_node edges = 
+        let pre_images = id_find_option delay_node reversed in 
+        match pre_images with
+            | None   -> edges
+            | Some l -> l |> List.map (modify_edges delay_node)
+                          |> List.fold_left compose (fun x -> x)
+                          |> (fun x -> x edges)
+    in
+    (* now apply the algorithm *)
+    let new_edges = wait_nodes
+                 |> List.map run_node
+                 |> List.fold_left compose (fun x -> x)
+                 |> (fun x -> x ptg.edges)
+    in
+    print_string ("CALCULATING NORMAL FORM\n\n");
+    print_string "\t new time nodes : ";
+    wait_nodes |> List.map string_of_int |> String.concat ", " |> print_string;
+    print_string "\n\n";
+
+    {
+        ptg with
+        edges = new_edges;
+        pre   = !added_pre @ ptg.pre; 
+        post  = !added_post @ ptg.post; 
+        main  = Utils.remove_list ptg.main wait_nodes;
+        times = wait_nodes @ ptg.times;
+    };;
+(***
+ *
+ * CURRENT
+ *
+ * Create a function that 
+ *    fetches all the « inputs » 
+ *    from main 
+ *    all the nodes that are not from main and 
+ *    goes to main 
+ * 
+ * Duplicate the graph 
+ *
+ * Fetch the « inputs », categorize them 
+ *  1. timed inputs
+ *  2. non-timed inputs
+ *
+ * For the first graph, 
+ *  replace all the timed inputs with bottom
+ *  connect all the non timed inputs to the ...
+ *
+ * For the second graph,
+ *
+ * Join the outputs of the two graphs 
+ *
+ *)
+
+(** TODO exporter directement 
+ * la fonction is_delayed ... *)
+let info_input pseudo ptg = 
+    (*
+     * Separate the delayed pseudo inputs
+     * from the non-delayed ones
+     *)
+    let is_delayed node =  
+        match id_find_option node ptg.edges with 
+            | Some [t] -> (* if it is delayed, only one delay node after him *)
+                    begin
+                        match id_find_option t ptg.labels with
+                            | Some Wait -> true
+                            | _         -> false
+                    end
+            |    _     -> false (* otherwise it is NOT delayed at all (by construction) *) 
+    in
+    List.map (fun x -> (x, is_delayed x)) pseudo;;
+
+(**
+ * The actual reducing times function
+ *
+ * NOTE It assumes that there is NO feedback
+ * loop, but that the PRE nodes can 
+ * be used as « pseudo-inputs » 
+ *
+ * It takes one pTG with no feedback loop
+ * and creates a new pTG with no feedback loop
+ * expanded using the delay rule
+ *
+ * a) the inner graph is copied 
+ * b) one is fed with _|_ and the inputs
+ * c) the other one is the other way around
+ * d) in the end post nodes of the copy are 
+ * cloned 
+ * e) pre nodes distributes to 
+ *    pre nodes of the two copies  
+ * f) input nodes distributes to input nodes
+ *    of the two copies
+ *
+ *
+ * WARNING 
+ *  THE GENERATED GRAPH IS NOT IN NORMAL 
+ *  TIMED FORM !!!!!!
+ *
+ *  FIXME only works with black magic 
+ *  dealing with list order that is 
+ *  not an invariant of the structure ... 
+ *
+ *)
+let reduce_times ptg1 =
+    (* The 0th thing to do : duplicate the graph ! *)
+    let ptg2 = replicate ptg1 in 
+
+    (* First thing is to know where are the pseudo inputs
+     * the delayed ones and all ...
+     * *)
+    let i_pre1 = info_input ptg1.pre ptg1 in  
+    let i_pre2 = info_input ptg2.pre ptg2 in  
+    let i_ins1 = info_input ptg1.ins ptg1 in 
+    let i_ins2 = info_input ptg2.ins ptg2 in 
+
+    (* removing the feedback loop *)
+    let remove_feedback = fun e -> 
+        List.fold_left (fun e v -> id_remove v e) e (ptg1.post @ ptg2.post) 
+    in 
+    
+    (* The new inputs for the circuit
+     * and the new pre nodes
+     *)
+    let glob_input = new_names (List.length ptg1.ins) in 
+    let (glob_pre : int list) = new_names (List.length ptg1.pre) in
+
+    (* creating delays for the outputs of the 
+     * copy of the graph
+     *)
+    let glob_delay = new_names (List.length ptg1.outs) in  
+
+    (**
+     * Creating teh new outputs
+     *)
+    let glob_output = new_names (List.length ptg1.outs) in 
+
+    (* The bottoms that are to be added during the
+     * construction 
+     *)
+    let bots       = ref [] in 
+    let new_bot () =
+        let n = nu () in  
+        bots := n :: !bots;
+        n
+    in
+
+    (** 
+     * the zip3 function, which is basically the thing 
+     * to have here 
+     *)
+    let rec zip3 f a b c = match (a,b,c) with
+        | [],[],[] -> []
+        | a1::a2,b1::b2,c1::c2 -> (f a1 b1 c1) :: zip3 f a2 b2 c2
+        | _        -> failwith "zip with 3 ... list length mismatch"
+    in
+    
+
+    (* The zipWith function (zip3 with 2 arguments) *)
+    let rec zipWith f a b = match (a,b) with
+        | [],[] -> []
+        | a1::a2, b1::b2 -> (f a1 b1) :: zipWith f a2 b2
+    in
+
+    (* the dispatching function for nodes
+     * can work on both inputs and pre nodes
+     * *)
+    let node_handling new_node (old1,dup1) (old2,dup2) = 
+        if dup1 <> dup2 then
+            failwith "IMPOSSIBLE : graph duplication can't change delays"
+        else
+            if dup1 then (* the node is a delayed input *)
+                [ (new_node, [old1]);
+                  (new_bot (), [old2]) ]
+            else (* the node is a direct input *)
+                [ (new_node, [old2]);
+                  (new_bot (), [old1]) ]
+    in
+
+    (* construct the dispatching arrows and bottoms for the
+     * pseudo inputs
+     * (constructing edges)
+     *)
+    let pre_dispatch = zip3 node_handling glob_pre i_pre1 i_pre2 
+                    |> List.concat
+    in  
+    let ins_dispatch = zip3 node_handling glob_input i_ins1 i_ins2 
+                    |> List.concat
+    in
+
+
+    (* 
+     * Delay the outputs of the first graph
+     * (constructing edges)
+     *)
+    let out_delayed = zipWith (fun a b -> (a,[b]))
+                              ptg1.outs
+                              glob_delay
+    in
+    
+    (* Merge the outputs of the two circuits *)
+    let ancestor_node nid ptg = 
+        match ptg.segde with
+            | None   -> failwith "ancestor_node (no reversed edges)"
+            | Some x ->
+                    begin
+                        match id_find_option nid x with
+                            | None     -> failwith "ancestor_node (no edges)"
+                            | Some [t] -> t
+                            | Some _   -> failwith "ancestor_node (multiple ancestors)"
+                    end
+    in
+
+    let image_node nid ptg = 
+        match id_find_option nid ptg.edges with
+            | None -> failwith "image_node (no edges)"
+            | Some [t] -> t
+            | Some _   -> failwith "image_node (multiple images)"
+    in
+
+    (*
+     * Deleting the timed nodes of the circuit by 
+     * removing them and connecting their pre-images
+     * to their images
+     *
+     * NOTE 
+     *  a) the reverse edges are already calculated 
+     *  b) the edges added and removed will 
+     *     not interfere with other call of 
+     *     the function, therefore 
+     *     it is NOT necessary to 
+     *     re-calculate reversed edges each time
+     *
+     * FIXME non linear
+     *)
+    let remove_delay_node ptg nid =   
+        let x = ancestor_node nid ptg in 
+        let y = image_node nid ptg    in 
+        { ptg with
+          main  = Utils.remove_list ptg.main [nid]; (* TODO do this in one pass ... (non-linear otherwise) *)
+          edges = ptg.edges 
+               |> id_remove nid 
+               |> id_remove x
+               |> id_add x [y]
+        }
+    in
+
+    (* Now all the bottoms have been created, we generate 
+     * the corresponding labels
+     *)
+    let labels_bottom = !bots 
+                     |> List.map (fun x -> (x, Disconnect))
+    in
+    
+    let labels_delays = glob_delay 
+                     |> List.map (fun x -> (x, Wait))
+    in
+
+
+    let ptg_base = {
+        (* The new main nodes for the graph *)
+        main = ptg1.main @ ptg2.main
+                         @ ptg2.pre 
+                         @ ptg2.ins 
+                         @ ptg1.pre
+                         @ ptg1.ins
+                         @ ptg1.outs
+                         @ ptg2.outs
+                         @ ptg1.times
+                         @ ptg2.times
+                         @ glob_delay 
+                         @ !bots;
+        ins  = glob_input;
+        pre  = glob_pre  ;
+        post = ptg1.post @ ptg2.post; 
+        outs = glob_output ; 
+        times = []; (* no more global times ! *)
+
+        edges = id_merge merger_l ptg1.edges ptg2.edges
+             |> remove_feedback
+             |> id_merge merger_l (map_of_pair_list pre_dispatch) 
+             |> id_merge merger_l (map_of_pair_list ins_dispatch) 
+             |> id_merge merger_l (map_of_pair_list out_delayed);
+
+        segde = None;
+
+        labels = id_merge merger_v ptg1.labels ptg2.labels
+              |> id_merge merger_v (map_of_pair_list labels_bottom)
+              |> id_merge merger_v (map_of_pair_list labels_delays);
+    }
+    in
+    report "Intermediate supress [base]" ptg_base;
+
+    let without_timers = List.fold_left 
+                            remove_delay_node 
+                            (calcul_revresed_edges ptg_base)
+                            (ptg1.times @ ptg2.times) 
+    in 
+    report "Intermediate supress [no timers]" without_timers;
+
+    (* Merge the two outputs into the global output nodes *)
+    let with_joined = mk_join (zip glob_output 
+                                   (zip glob_delay ptg2.outs))
+                              without_timers
+    in
+    report "Intermediate supress [with join]" with_joined;
+    with_joined;;
+
+
 (***
  *
  *
@@ -1340,8 +1719,9 @@ let unfold_ptg (t1:pTG) =
     if t1.pre = [] or t1.post = [] then
         t1
     else
-  let t2    = replicate t1 in
-    print_newline ();
+  let t2tmp   = replicate t1 in
+  let t2      = reduce_times t2tmp in 
+
   (* Creating new names for the circuit's 
    * new input nodes 
    *)
@@ -1374,7 +1754,7 @@ let unfold_ptg (t1:pTG) =
   let ignore_post_e   = zip t2.post (List.map (fun x -> [x]) ignore_post) in 
 
   let remove_feedback = fun e -> 
-      List.fold_left (fun e v -> id_remove v e) e (t1.post @ t2.post) 
+      List.fold_left (fun e v -> id_remove v e) e t1.post
   in 
 
   let new_feedback    = zip n_posts t1.post 
@@ -1382,9 +1762,13 @@ let unfold_ptg (t1:pTG) =
                              (new_p, id_find old_p t1.edges))
   in
 
-  let new_false_feedback = zip n_pre_pre t2.post 
-                     |> List.map (fun (new_p,old_p) -> 
-                             (new_p, id_find old_p t2.edges))
+  (*
+   * assumes that the order is preserved in the lists when 
+   * renaming occurs (in duplication)
+   *)
+  let new_false_feedback = zip n_pre_pre t2.pre 
+                     |> List.map (fun (x,y) -> 
+                             (x, [y]))
   in
 
   let calcul_edges    = id_merge merger_l t1.edges t2.edges
@@ -1417,7 +1801,6 @@ let unfold_ptg (t1:pTG) =
                  @ t2.main 
                  @ t2.post 
                  @ t2.pre 
-                 @ t2.times (* CURRENT TODO FIXME do something with the times from the copy *)
                  ;
     times = t1.times; (* we keep the first times for t1 the same *)
     edges = calcul_edges ; 
@@ -1437,107 +1820,10 @@ let unfold_ptg (t1:pTG) =
   let t_forks  = mk_fork test_prout t_forks in 
 
   report "Unfolded " t_forks;
-  t_forks;;
-
-(***
- *
- * CURRENT
- *
- * Create a function that 
- *    fetches all the « inputs » 
- *    from main 
- *    all the nodes that are not from main and 
- *    goes to main 
- * 
- * Duplicate the graph 
- *
- * Fetch the « inputs », categorize them 
- *  1. timed inputs
- *  2. non-timed inputs
- *
- * For the first graph, 
- *  replace all the timed inputs with bottom
- *  connect all the non timed inputs to the ...
- *
- * For the second graph,
- *
- * Join the outputs of the two graphs 
- *
- *)
-let find_pseudo_inputs ptg = 
-    (* finding the pseudo-inputs of 
-     * the graph
-     *
-     * the pseudo-inputs are the nodes 
-     * connected to feedback nodes
-     * 
-     *)
-    ptg.pre 
-        |> List.map (fun x -> id_find x ptg.edges) 
-        |> List.concat;;
-
-let split_inputs pseudo ptg = 
-    (*
-     * Separate the delayed pseudo inputs
-     * from the non-delayed ones
-     *)
-    let is_delayed node =  
-        match id_find_option node ptg.edges with 
-            | Some [t] -> (* if it is delayed, only one delay node after him *)
-                    begin
-                        match id_find_option t ptg.labels with
-                            | Some Wait -> true
-                            | _         -> false
-                    end
-            |    _     -> false (* otherwise it is NOT delayed at all (by construction) *) 
-    in
-    List.partition is_delayed pseudo;;
-
-(**
- * The actual reducing times function
- *
- * NOTE It assumes that there is NO feedback
- * loop, but that the PRE nodes can 
- * be used as « pseudo-inputs » 
- *
- * It takes one pTG with no feedback loop
- * and creates a new pTG with no feedback loop
- * expanded using the delay rule
- *
- * a) the inner graph is copied 
- * b) one is fed with _|_ and the inputs
- * c) the other one is the other way around
- * d) in the end post nodes of the copy are 
- * cloned 
- * e) pre nodes distributes to 
- *    pre nodes of the two copies  
- * f) input nodes distributes to input nodes
- *    of the two copies
- *
- *)
-let reduce_times ptg1 =
-    let ptg2 = replicate ptg1 in 
-
-    (* First thing is to know where are the pseudo inputs *)
-    (* rin_del = real_input_delayed
-     * rin_dir = real_input_direct
-     *
-     * pin_del = pseudo_input_delayed
-     * pin_dir = pseudo_input_direct
-     *)
-    let (rin_del1,rin_dir1) = split_inputs ptg1.ins ptg1 in 
-    let (rin_del2,rin_dir2) = split_inputs ptg2.ins ptg2 in 
-    
-    let (pin_del1,pin_dir1) = 
-        split_inputs (find_pseudo_inputs ptg1) ptg1 in 
-    let (pin_del2,pin_dir2) = 
-        split_inputs (find_pseudo_inputs ptg2) ptg2 in 
-    
-    (* Then we create the necessary bottoms *)
-    (* TODO *)
-
-    ();;
-
+  
+  let renormal = normal_timed_form t_forks in 
+  report "Normalized " renormal;
+  renormal;;
 
   
 (* Reduce a dangling node 
@@ -1753,76 +2039,6 @@ let run_ternary gate name n =
 
 
 
-(*******
- *
- * Conversion from a pTG to a pTG with
- * normal form times 
- *
- * The times are IN FRONT of the circuit 
- * « moralement » 
- *
- *)
-let normal_timed_form ptg =  
-    (* For each wait node in G called x
-     * Remove x from the main nodes
-     * Add x to the times nodes
-     * For each node y connected to x (y->x)
-     * if y is in PRE : do nothing
-     * if y is in INS : do nothing
-     * otherwise : remove the edge y->x 
-     *             add two nodes p and q
-     *             and edges y->p->q->x
-     *             with p in POST and q in PRE
-     *)
-    (* NOTE the edges must be reversed to calculate 
-     * pre-images of nodes by the neighbour function
-     *)
-    let reversed    = reverse_edges ptg.edges in 
-    let added_post = ref [] in 
-    let added_pre  = ref [] in 
-    let add_post x = added_post := x :: !added_post in 
-    let add_pre  x = added_pre := x :: !added_pre in 
-    let compose f g x = f (g x) in 
-    let wait_nodes = ptg.labels 
-                  |> id_filter (fun _ x -> x = Wait)
-                  |> (fun x -> id_fold (fun x _ y -> x :: y) x [])
-    in
-    (* the inner loop's body *)
-    let modify_edges delay_node other_node edges = 
-        if List.mem other_node ptg.pre || List.mem other_node ptg.ins then 
-            edges
-        else
-            let [a1;a2] = new_names 2 in 
-            add_post a1;
-            add_pre  a2;
-            edges |> id_rem_occ other_node delay_node 
-                  |> id_merge merger_l (map_of_pair_list [other_node, [a1]])
-                  |> id_add a1         [a2]
-                  |> id_add a2         [delay_node] 
-    in
-    (* the main loop's body *)
-    let run_node delay_node edges = 
-        let pre_images = id_find_option delay_node reversed in 
-        match pre_images with
-            | None   -> edges
-            | Some l -> l |> List.map (modify_edges delay_node)
-                          |> List.fold_left compose (fun x -> x)
-                          |> (fun x -> x edges)
-    in
-    (* now apply the algorithm *)
-    let new_edges = wait_nodes
-                 |> List.map run_node
-                 |> List.fold_left compose (fun x -> x)
-                 |> (fun x -> x ptg.edges)
-    in
-    {
-        ptg with
-        edges = new_edges;
-        pre   = !added_pre @ ptg.pre; 
-        post  = !added_post @ ptg.post; 
-        main  = Utils.remove_list ptg.main wait_nodes;
-        times = wait_nodes;
-    };;
 
 (******** ALIAUME HOOK INTO THE CODE **********)
 
