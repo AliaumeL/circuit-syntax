@@ -51,16 +51,19 @@ let renderMods m = m
     |> List.map (fun (x,y) -> x ^ "=" ^ y)
     |> String.concat ",";;
 
-let mod_shape x = SM.add "shape" x;;
-let mod_label x = SM.add "label" ("\"" ^ x ^ "\"");;
-let mod_style x = SM.add "style" (surround "\"" "\"" x);;
-let mod_width x = SM.add "width" (string_of_float x);; 
-let mod_height x = SM.add "height" (string_of_float x);; 
+let mod_shape x     = SM.add "shape" x;;
+let mod_color x     = SM.add "color" x;;
+let mod_label x     = SM.add "label" ("\"" ^ x ^ "\"");;
+let mod_style x     = SM.add "style" (surround "\"" "\"" x);;
+let mod_width x     = SM.add "width" (string_of_float x);;
+let mod_height x    = SM.add "height" (string_of_float x);;
 let mod_fixedsize x = SM.add "fixedsize" ("\"" ^ (string_of_bool x) ^ "\"");;
 
 (* 
- * Construit un label associé à un noeud, un port
- * et savoir si c'est une entrée / sortie 
+ * Making a node id 
+ *
+ * Note : ports starts from 0 but they are displayed 
+ * starting from 1, thus the (i+1) in the code 
  *
  *)
 let mkLabel id port io = 
@@ -68,9 +71,8 @@ let mkLabel id port io =
         | None   -> "N" ^ string_of_int id 
         | Some i -> "N" ^ string_of_int id ^ ":" ^ io ^ string_of_int i;;
 
-let mkNode mods = 
-    let id = uid () in 
-    (id, "N" ^ string_of_int id ^ " [" ^ renderMods mods ^ "]\n");;
+let mkNode nid mods = 
+    "N" ^ string_of_int nid ^ " [" ^ renderMods mods ^ "]\n";;
 
 let emptyMod = SM.empty;;
 let baseMod  = SM.singleton "shape" "record";;
@@ -89,20 +91,25 @@ let inputsOutputs label n m =
     in 
     SM.add "label" labelFinal;;
 
-(* Link : fait un lien entre deux sommets *)
-let link  = fun i1 x i2 y -> 
+(* 
+ * Make a link between two nodes 
+ *
+ * i1 : first node 
+ * i2 : second node 
+ * x  : optionnal port (maybe int)
+ * y  : optionnal port (maybe int)
+ *
+ *)
+let mkLink  = fun i1 x i2 y -> 
     mkLabel i1 x "out" ^ " -> " ^ mkLabel i2 y "in" ^ "\n";;
 
-(* shadowLink : fait un lien avec des pointillés ... *)
-let shadowLink i1 x i2 y = 
-    mkLabel i1 x "out" ^ " -> " ^ mkLabel i2 y "in" ^ " \n";; (* " [style=dotted]\n";;  *) 
-
-
 (**
- * syntaxe :  {rank=same; q1 q2 ... qn}
+ *
+ * syntax : {rank=min; ... } / {rank=max;  ... } 
+ *
  *)
-let same_rankdir l = 
-    let s = surround "{rank=same;" "}\n" in
+let rank_group rg l = 
+    let s = surround ("{rank=" ^ rg ^ ";") "}\n" in
     l |> List.map (fun id -> mkLabel id None "") |> String.concat " " |> s;; 
 
 let addDot  = (^);; 
