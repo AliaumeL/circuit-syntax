@@ -60,20 +60,21 @@ let rec zipWith f l1 l2 = match (l1,l2) with
     | (a::c, b::d) -> (f a b) :: (zipWith f c d);;
 
 (* 
- * Place un morceau de texte des deux côtés 
- * d'un texte
  *
- * Utile pour composer avec des fonctions
+ * Put surroundings to a string
+ * Usefull in long function composition
+ * chain
  *
- * ATTENTION: ne met entre p et q 
- * que si la chaine est non vide !
- * (pratique)
+ * WARNING: intended behaviour,
+ * if the string is empty, does NOT
+ * put any surroundings
+ *
  *)
 let surround p q s =
     if s = "" then "" else p ^ s ^ q;;
 
 (**
- * permute les lignes d'un vecteur
+ * Swap lines of a vector 
  *)
 let permute_lignes i j v =   
     let tmp = v.(i) in 
@@ -91,6 +92,7 @@ let array_find f a =
     done;
     !c;;
 
+(* option trying combinator *)
 let (<|>) a b = match a with
     | Some x -> a
     | None -> b;;
