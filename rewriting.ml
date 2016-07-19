@@ -18,8 +18,8 @@ open Ptg;;
  *)
 let propagate_constant ~node:n t = 
     try (* pattern matching failure means no modification *)
-        let Some (Value v) = id_find n t.labels             in 
-        let [traced_node]  = post_nodes ~node:n           t in 
+        let Some (Value v) = id_find n t.labels       in 
+        let [traced_node]  = post_nodes ~node:n     t in 
         if not (List.mem traced_node t.traced) then 
             t
         else
@@ -36,11 +36,11 @@ let propagate_constant ~node:n t =
  *)
 let remove_identity ~node:n t = 
     try (* pattern matching failure means no modification *)
-        let [pre] = pre_nodes  ~node:n t in 
-        let [pos] = post_nodes ~node:n t in
+        let [pre] = edges_towards  ~node:n t in 
+        let [pos] = edges_from     ~node:n t in
         let None  = id_find n t.labels   in 
         if List.mem n t.nodes then 
-            t |> edge_remove_node ~from:pre ~using:n ~towards:pos 
+            t |> edge_remove_node ~first:pre ~using:n ~second:pos
               |> main_rem ~node:n
         else
             t
@@ -52,17 +52,23 @@ let remove_identity ~node:n t =
  *)
 let propagate_fork ~node:n t = 
     try (* pattern matching failure means no modification *)
-        let Some (Gate Fork) = id_find n t.labels     in 
-        let [z]              = pre_nodes  ~node:n t   in 
-        let Some (Value v)   = id_find z  t.labels    in 
-        let [x;y]            = post_nodes ~node:n t   in 
+        let Some (Gate Fork)  = id_find n t.labels     in 
+        let [z]               = pre_nodes  ~node:n t   in 
+
+        let Some (Value v)    = id_find z  t.labels    in 
+        let [e1;e2]           = edges_from ~node:n t   in 
         
         (* now do the update *)
-        let new_node         = newid ()               in  
+        let new_node         = newid ()                in  
+        let new_edge         = neweid ()               in
 
-        t |> edge_insert_node ~from:n ~towards:x ~using:new_node 
-          |> edge_rem ~from:n ~towards:new_node
+        (* fist introduce the new node *)
+        t |> edge_insert_node ~edge:e2 ~using:new_edge ~node:new_node
+          (* disconnect from the fork node *)
+          |> edge_rem ~edge:e2
+          (* remove the value node *)
           |> main_rem ~node:z
+          (* set the new labels accordingly *)
           |> label_set ~node:n ~label:(Value v)
           |> label_set ~node:new_node ~label:(Value v)
     with
@@ -81,7 +87,7 @@ let bottom_join ~node:n t =
         let Some (Gate  Join)   = id_find j t.labels    in 
         t |> main_rem  ~node:n
           |> label_rem ~node:j
-          |> edge_rem  ~from:j ~towards:n
+          |> post_disconnect ~node:n (* remove the edge *)
     with
         Match_failure _ -> t;;
 
@@ -93,7 +99,7 @@ let disconnect_fork ~node:n t =
         let Some (Gate  Fork)   = id_find f t.labels    in 
         t |> main_rem  ~node:n
           |> label_rem ~node:f
-          |> edge_rem  ~from:f ~towards:n
+          |> pre_disconnect ~node:n
     with
         Match_failure _ -> t;;
 
@@ -164,9 +170,14 @@ let fun_of_gate = function
 let reduce_gate ~node:n t = 
     if is_gate ~node:n t then
         try 
-            let pre = pre_nodes  ~node:n t in 
-            let [o] = post_nodes ~node:n t in 
+            let pre = edges_towards  ~node:n t in 
+            let [o] = edges_from     ~node:n t in 
             let ipt = List.map (fun x -> lazy (id_find x t.labels)) pre in 
+
+
+            (*** TODO update this part of the code to use 
+             *   node ids 
+             *)
             
             match fun_of_gate (gate_of_node ~node:n t) ipt with
                 | Wire   i -> 
@@ -174,7 +185,7 @@ let reduce_gate ~node:n t =
                          * through the gate (edge_remove_node)
                          * (bypassing the gate)
                          *)
-                        t |> edge_remove_node ~from:(List.nth pre i) ~towards:o ~using:n
+                        t |> edge_remove_node ~first:(List.nth pre i) ~second:o ~using:n
                         (* completely delete the gate
                          * with safe deletion 
                          * *)
@@ -184,14 +195,15 @@ let reduce_gate ~node:n t =
                          * insert node between the gate and the output,
                          * putting label l 
                          *)
-                        let m = newid () in 
+                        let m = newid  () in 
+                        let e = neweid () in 
                         t |> main_add  ~node:n 
                           |> label_set ~node:n ~label:(Value l)
-                          |> edge_insert_node ~from:n ~towards:o ~using:m
+                          |> edge_insert_node ~edge:o ~node:m ~using:e
                         (* remove the edge between the inserted node 
                          * and the gate
                          *)
-                          |> edge_rem ~from:n ~towards:m
+                          |> edge_rem ~edge:o
                         (* 
                          * remove the gate using safe remove 
                          *)
@@ -349,8 +361,6 @@ let rec mark_nodes ~seen ~nexts ptg =
  *)
 let mark_and_sweep t = 
     let reachable           = mark_nodes ~seen:[] ~nexts:t.oports t in 
-    print_string "\n REACHABLE : ";
-    reachable |> List.map string_of_int |> String.concat " ; " |> print_string;
     let filter_func x       = not (List.mem x reachable) in 
     let is_reachable x      = List.mem x reachable in 
     let nodes_to_delete     = List.filter filter_func t.nodes in 
@@ -370,17 +380,14 @@ let mark_and_sweep t =
         let discons = newids (List.length pre ) in 
 
         
-        t |> apply ~f:(fun (x,y) -> edge_insert_node ~from:n ~using:y ~towards:x) ~elems:(List.combine post bottoms)
-          |> apply ~f:(fun (x,y) -> edge_insert_node ~from:x ~using:y ~towards:n) ~elems:(List.combine pre  discons)
+        t |> apply ~f:(fun (e,y) -> edge_insert_node ~edge:e ~node:y ~using:(neweid ())) ~elems:(List.combine post bottoms)
+          |> apply ~f:(fun (e,y) -> edge_insert_node ~edge:e ~node:y ~using:(neweid ())) ~elems:(List.combine pre  discons)
           |> batch ~f:(label_set ~label:Disconnect)     ~nodes:discons
           |> batch ~f:(label_set ~label:(Value Bottom)) ~nodes:bottoms
           |> main_rem ~node:n 
           |> node_edges_rem ~node:n
     in
 
-    print_string "\n TO DELETE : ";
-    nodes_to_delete |> List.map string_of_int |> String.concat " ; " |> print_string;
-    print_string "\n";
     t |> batch ~f:remove_node_safely  ~nodes:nodes_to_delete 
 
 
@@ -394,7 +401,7 @@ let mark_and_sweep t =
 
 
 let empty_ptg = 
-    { iports = []; oports = []; traced = []; delays = []; nodes = []; labels = id_empty; edges = id_empty ; co_edges = id_empty };;
+    { iports = []; oports = []; traced = []; delays = []; nodes = []; labels = id_empty; edges = id_empty ; co_edges = id_empty; arrows = id_empty };;
 
 
 let example_ptg_2 = 
@@ -407,13 +414,30 @@ let example_ptg_2 =
               |> connect   ~from:[a;a;c]  ~towards:[b;d;a];;
 
 
-let () = 
-    example_ptg_2 |> string_of_ptg   |> print_string;
-    example_ptg_2 |> mark_and_sweep |> string_of_ptg |> print_string;;
+let example_ptg_3 = 
+    let [o] = newids 1  in
+    let bot = newids 10 in 
+    empty_ptg |> oport_add ~node:o
+              |> batch ~f:main_add ~nodes:bot
+              |> batch ~f:(label_set ~label:(Value Bottom)) ~nodes:bot
+              |> join_into ~node:o ~nodes:bot;;
 
+
+let example_ptg_4 = 
+    let [i;o;t] = newids 3 in 
+    empty_ptg |> iport_add ~node:i
+              |> oport_add ~node:o
+              |> main_add  ~node:t
+              |> edge_add  ~from:i ~towards:t
+              |> edge_add  ~from:t ~towards:o;;
 
 
 (******* DOT OUTPUT ... *******)
+
+let rec list_index x = function
+    | [] -> failwith "oups"
+    | t :: q when t = x -> 0
+    | t :: q -> 1 + list_index x q;;
 
 open Dot;;
 let dot_of_ptg ptg = 
@@ -424,20 +448,41 @@ let dot_of_ptg ptg =
         let n = List.length (pre_nodes  ~node:nid ptg) in 
         let m = List.length (post_nodes ~node:nid ptg) in 
         match id_find nid ptg.labels with
-            | None      -> mkNode nid (emptyMod |> mod_shape "point") 
-            | Some (Gate Join) -> 
-                    mkNode nid (emptyMod |> mod_shape "point")
+            | None       
+            | Some (Gate Join) 
             | Some (Gate Fork) -> 
                     mkNode nid (emptyMod |> mod_shape "point")
+            | Some Disconnect -> 
+                    mkNode nid (baseMod |> mod_label (string_of_label Disconnect))
+            | Some (Value v) -> 
+                    mkNode nid (baseMod |> mod_label (string_of_label (Value v)))
             | Some l ->
                     mkNode nid (baseMod |> inputsOutputs (string_of_label l) n m)
     in
 
-    (* 
-     * DO SOMETHING CLEVER HERE 
-     *
-     *)
-    let edges_from n t =  () in 
+    let node_port_from_edge nid l eid = 
+        match id_find nid ptg.labels with
+            | None 
+            | Some (Gate Join)
+            | Some (Gate Fork) 
+            | Some Disconnect
+            | Some (Value _) -> None
+            | _              -> Some (1 + list_index eid l)
+    in
+
+    let draw_edge eid (a,b) = 
+        let l1 = edges_from    ~node:a ptg in 
+        let l2 = edges_towards ~node:b ptg in 
+        let i1 = node_port_from_edge a l1 eid in 
+        let i2 = node_port_from_edge b l2 eid in 
+        mkLink a i1 b i2
+    in
+
+    let edges = 
+        ptg.arrows |> id_bindings
+                   |> List.map (fun (x,y) -> draw_edge x y)
+                   |> String.concat "\n"
+    in
 
 
     let main_nodes =
@@ -469,7 +514,15 @@ let dot_of_ptg ptg =
             |> String.concat "\n"
     in
 
-    [ init_rank; fin_rank; main_nodes; inputs; outputs; delays; traced ]
+    [ init_rank; fin_rank; main_nodes; inputs; outputs; delays; traced;edges ]
             |> String.concat "\n"
             |> addPrelude;;
 
+(*******
+ *
+ * ENTRY POINT
+ *
+ *
+ *******)
+let () = 
+    example_ptg_4 |> remove_identity ~node:27 |> dot_of_ptg |> print_string;;

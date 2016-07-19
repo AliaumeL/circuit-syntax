@@ -15,6 +15,17 @@
  *)
 
 
+(****
+ *
+ * FIXME order reverse order nodes edges
+ *
+ * correct behavior ? 
+ *
+ * TODO IMPORTANT NOTE FIXME
+ *
+ *)
+
+
 let rec zip f a b = match (a,b) with
     | [],[] -> []
     | a :: b, c :: d -> f a c :: zip f b d ;;
@@ -45,7 +56,11 @@ module IntegerDictionary = Map.Make (ComparableInts);;
 
 type 'a mapping = 'a IntegerDictionary.t;;
 
+(* node unique id *)
 type nid = int;;
+
+(* edge unique id *)
+type eid = int;;
 
 let id_empty     = IntegerDictionary.empty
 let id_add       = IntegerDictionary.add
@@ -143,11 +158,26 @@ type ptg = {
     labels  : label mapping;
     
     (* edges in right order     *)
-    edges      : (nid list) mapping;
+    edges      : eid list mapping;
+
     (* edges for the dual graph *)
-    co_edges   : (nid list) mapping;
+    co_edges   : eid list mapping;
+
+    (* arrows : the nodes that corresponds 
+     * to edges
+     *
+     * edge -> (node, node)
+     *)
+    arrows     : (nid * nid) mapping;
 };;
 
+(*** 
+ * INVARIANTS 
+ *
+ * TODO write all the invariants about 
+ * the structure 
+ *
+ *)
 
 
 (**** PRETTY PRINTING ****)
@@ -185,23 +215,31 @@ let string_of_ptg ptg =
         "\tDELAYS : ";
         ptg.delays |> List.map (fun x -> string_of_int x) |> String.concat ", ";
         "\tEDGES";
-        ptg.edges  |> id_bindings
-                   |> List.map (fun (x,l) -> List.map (fun k -> (x,k)) l)
-                   |> List.concat
-                   |> List.map (fun (x,y) -> 
-                             "\t\t  " ^ string_of_int x ^ " -> "
+        ptg.arrows |> id_bindings
+                   |> List.map (fun (e,(x,y)) -> 
+                             "\t\t  EDGE :" ^ string_of_int e ^ " = " ^ string_of_int x ^ " -> "
                                       ^ string_of_int y)
                    |> String.concat "\n";
     ] in 
     structure |> String.concat "\n";;
 
 
-(* UNIQUE NODE ID PROVIDER *)
+(* 
+ * UNIQUE NODE ID PROVIDER 
+ * and 
+ * UNIQUE EDGE ID PROVIDER
+ * *)
 let counter  = ref 0;;
 let newid () = 
     incr counter; !counter;;
 
-let newids n = Utils.range n |> List.map (fun _ -> newid ());;
+let e_counter  = ref 0;;
+let neweid () = 
+    incr e_counter; !e_counter;;
+
+let newids n  = Utils.range n |> List.map (fun _ -> newid ());;
+let neweids n = Utils.range n |> List.map (fun _ -> neweid ());;
+
 
 (**** BASE OPERATIONS ****)
 
@@ -231,38 +269,65 @@ let main_add  ~node:n t =
       nodes = n :: t.nodes 
     };;
 
+(**
+ * Can fail with Not_found !!!
+ * if the edge does not exist
+ *)
+let edge_get_nodes ~edge:e t = 
+    IntegerDictionary.find e t.arrows;;
+
+
 
 
 (* Node neighbourhood exploration *)
 
-let pre_nodes ~node:n t = 
+let edges_towards ~node:n t = 
     match id_find n t.co_edges with
         | Some l -> l 
         | None   -> [];;
 
-let post_nodes ~node:n t = 
+let edges_from    ~node:n t = 
     match id_find n t.edges with
         | Some l -> l 
         | None   -> [];;
 
 
-(* Edge construction and destruction 
- * adding an EDGE at the TOP of the list
- * for both nodes ... 
+let pre_nodes ~node:n t = 
+    match id_find n t.co_edges with
+        | Some l -> l 
+                    |> List.map (fun e -> fst (edge_get_nodes ~edge:e t))
+        | None   -> [];;
+
+let post_nodes ~node:n t = 
+    match id_find n t.edges with
+        | Some l -> l 
+                    |> List.map (fun e -> snd (edge_get_nodes ~edge:e t))
+        | None   -> [];;
+
+
+(* Edge construction 
  *
- * It will use the first available output
- * and the first available input
+ * Creates a new input and a new 
+ * output port to connect the two 
+ * nodes (no conflict can arise 
+ * with this notation)
  *
  * *)
 let edge_add ~from:n ~towards:m t = 
-    let insert_node node = function
-        | None   -> Some [node]
-        | Some l -> Some (node :: l)
+    let eid   = neweid () in 
+
+    let pre_m = edges_towards  ~node:m t in 
+    let pos_n = edges_from     ~node:n t in 
+
+    let insert_edge = function
+        | None   -> Some [eid] 
+        | Some l -> Some (eid :: l)
     in
 
     { t with
-      edges    = id_update n (insert_node m) t.edges;
-      co_edges = id_update m (insert_node n) t.co_edges;
+      edges    = id_update n insert_edge t.edges;
+      co_edges = id_update m insert_edge t.co_edges;
+      arrows   = id_add eid (n,m) t.arrows;
     };;
 
 (*
@@ -274,14 +339,21 @@ let edge_add ~from:n ~towards:m t =
  * (it could be that they share several connection 
  * on different ports)
  *)
-let edge_rem ~from:n ~towards:m t = 
-    let update_func node = function
-        | Some l when List.mem node l -> Some (remove_once node l)
+let edge_rem ~edge:eid t = 
+    (* DEBUG don't check for the presence in 
+     * production code ...
+     *)
+    let update_func x = function
+        | Some l when List.mem x l -> Some (remove_once x l)
         |   _    -> failwith "edge already removed !!! (edge_rem)"
     in
+
+    let (n,m) = edge_get_nodes ~edge:eid t in 
+
     { t with
-      edges    = id_update n (update_func m) t.edges;
-      co_edges = id_update m (update_func n) t.co_edges;
+      edges    = id_update n (update_func eid) t.edges;
+      co_edges = id_update m (update_func eid) t.co_edges;
+      arrows   = id_remove eid t.arrows;
     };;
 
 (* Label updating *)
@@ -348,20 +420,19 @@ let apply ~f ~elems:nds t = (* generic function batch *)
 
 (** removes all the edges going in and out of a node *)
 let node_edges_rem ~node:n t = 
-    let pre  = pre_nodes  ~node:n t in 
-    let post = post_nodes ~node:n t in 
-    t |> apply ~f:(fun x -> edge_rem ~from:n ~towards:x) ~elems:post
-      |> apply ~f:(fun x -> edge_rem ~from:x ~towards:n) ~elems:pre;;
+    let pre  = edges_towards ~node:n t in 
+    let post = edges_from    ~node:n t in 
+    t |> apply ~f:(fun e -> edge_rem ~edge:e) ~elems:post
+      |> apply ~f:(fun e -> edge_rem ~edge:e) ~elems:pre;;
 
 (** global pre/post disconnection *)
 let pre_disconnect ~node:n t = 
-    let p = pre_nodes ~node:n t in 
-    apply ~f:(fun x -> edge_rem  ~from:x ~towards:n) ~elems:p t;;
+    let p = edges_towards ~node:n t in 
+    apply ~f:(fun e -> edge_rem ~edge:e) ~elems:p t;;
 
 let post_disconnect ~node:n t = 
-    let p = post_nodes ~node:n t in 
-    apply ~f:(fun x -> edge_rem  ~from:n ~towards:x) ~elems:p t;;
-
+    let p = edges_from ~node:n t in 
+    apply ~f:(fun e -> edge_rem ~edge:e) ~elems:p t;;
 
 (**** HIGHER LEVEL OPERATIONS ON GRAPHS *****)
 
@@ -473,12 +544,13 @@ let trace_split ptg =
      * constant time !!
      *)
     let copy_pre_conn (x,y) t = 
-        let pre  = pre_nodes ~node:x t in 
-        let action ~node:n t = 
-            t |> edge_rem ~from:n ~towards:x 
+        let pre  = edges_towards ~node:x t in 
+        let action e t = 
+            let n = fst (edge_get_nodes ~edge:e t) in
+            t |> edge_rem ~edge:e
               |> edge_add ~from:n ~towards:y
         in
-        batch ~f:action ~nodes:pre t
+        apply ~f:action ~elems:pre t
     in
 
     let new_graph = {
@@ -507,38 +579,48 @@ let trace_split ptg =
  * node of type 1->1
  *
  *)
-let edge_remove_node ~from:a ~using:b ~towards:c t = 
-    let a_out       = post_nodes ~node:a t in 
-    let c_in        = pre_nodes  ~node:a t in 
-    let convert n x = 
-        if x = b then
-            n 
-        else
-            x
-    in
+let edge_remove_node ~first:e1 ~using:b ~second:e2 t = 
+
+    let (a,_) = edge_get_nodes ~edge:e1 t in 
+    let (_,c) = edge_get_nodes ~edge:e2 t in 
+
+    let a_out = edges_from    ~node:a t in 
+    let c_in  = edges_towards ~node:c t in 
 
     { t with
-      edges    = t.edges    |> id_add a (replace_once b c a_out) |> id_remove b ; 
-      co_edges = t.co_edges |> id_add c (replace_once b a c_in)  |> id_remove b ;
+      edges    = t.edges    
+              |> id_remove b ; 
+
+      co_edges = t.co_edges 
+              |> id_add c (replace_once e2 e1 c_in) 
+              |> id_remove b ;
+
+      arrows = t.arrows  
+            |> id_remove e2
+            |> id_add e1 (a,c) ;
     };; 
 
 (***
  * Does exactly the opposite construction 
+ *
+ * b is supposed to be a simple connecting node
+ * without ANY edges prior to this function call
+ *
  *)
-let edge_insert_node ~from:a ~towards:c ~using:b t = 
-    let a_out = post_nodes ~node:a t in 
-    let c_in = pre_nodes  ~node:c t in 
-    let convert n x = 
-        if x = b then 
-            n 
-        else
-            x
-    in
+let edge_insert_node ~edge:e1 ~node:b ~using:e2 t = 
+
+    let (a,c) = edge_get_nodes ~edge:e1 t in 
+
+    let a_out = edges_from    ~node:a t in 
+    let c_in  = edges_towards ~node:c t in 
+
     { t with
-      edges = t.edges |> id_add a (replace_once c b a_out)
-                      |> id_add b [a] ;
-      co_edges = t.co_edges |> id_add c (replace_once a b c_in) 
-                            |> id_add b [c];
+      edges = t.edges |> id_add b [e2] ;
+      co_edges = t.co_edges |> id_add c (replace_once e1 e2 c_in) 
+                            |> id_add b [e1];
+      arrows = t.arrows 
+            |> id_add e1 (a,b)
+            |> id_add e2 (b,c) ;
     };;
 
 
@@ -598,6 +680,10 @@ let replicate ptg =
               |> id_bindings
               |> List.fold_left update_label id_empty ;
 
+        arrows = ptg.arrows
+              |> id_bindings
+              |> List.fold_left update_label id_empty ;
+
     });; 
 
 
@@ -616,9 +702,11 @@ let ptg_merge g1 g2 =
       iports = [];
       oports = [];
 
-      labels = id_merge merger_v g1.labels g2.labels;
+      labels   = id_merge merger_v g1.labels g2.labels;
 
       edges    = id_merge merger_v g1.edges  g2.edges;
 
       co_edges = id_merge merger_v g1.co_edges g2.co_edges;
+
+      arrows   = id_merge merger_v g1.arrows g2.arrows;
     };;
