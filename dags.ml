@@ -9,13 +9,6 @@
  * TODO 
  *
  * a) Have a map from Const label to meaning  
- * b) Define clearly what a meaning _is_ (rules to reduce ?)
- * c) Implement reduction directly in this file
- * d) Switch to a more efficient representation of edges
- * e) Build a general-purpose funciton to find patterns in 
- *    a dag
- *
- *
  *
  *)
 

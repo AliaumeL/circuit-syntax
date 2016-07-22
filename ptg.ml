@@ -434,6 +434,10 @@ let post_disconnect ~node:n t =
     let p = edges_from ~node:n t in 
     apply ~f:(fun e -> edge_rem ~edge:e) ~elems:p t;;
 
+let all_disconnect ~node:n t = 
+    t |> pre_disconnect  ~node:n 
+      |> post_disconnect ~node:n;;
+
 (**** HIGHER LEVEL OPERATIONS ON GRAPHS *****)
 
 let connect ~from:l1 ~towards:l2 t = 
@@ -511,6 +515,13 @@ let rec fork_into ~node:n ~nodes:l ptg =
         | []  -> ptg
         | [t] -> 
                 ptg |> edge_add ~from:n ~towards:t 
+        | [a;b] -> 
+                let fork_node = newid () in 
+                ptg |> edge_add ~from:fork_node ~towards:a
+                    |> edge_add ~from:fork_node ~towards:b
+                    |> main_add ~node:fork_node
+                    |> label_set ~node:fork_node ~label:(Gate Fork)
+                    |> edge_add ~from:n ~towards:fork_node
         | t :: q -> 
                 let fork_node = newid () in 
                 ptg |> fork_into ~node:fork_node ~nodes:q
@@ -538,19 +549,23 @@ let trace_split ptg =
     let trids  = newids (List.length ptg.traced) in 
     let corres = List.combine ptg.traced trids   in  
 
+    print_string "CORRES : ";
+    corres |> List.map (fun (x,y) -> string_of_int x ^ ":" ^ string_of_int y) 
+           |> String.concat "   " 
+           |> print_string;
+    print_string "\n";
+
     (* this function seems complex, but in fact
      * traced nodes have only one input and 
      * one output, so this function runs in 
      * constant time !!
      *)
     let copy_pre_conn (x,y) t = 
-        let pre  = edges_towards ~node:x t in 
-        let action e t = 
-            let n = fst (edge_get_nodes ~edge:e t) in
-            t |> edge_rem ~edge:e
-              |> edge_add ~from:n ~towards:y
-        in
-        apply ~f:action ~elems:pre t
+        let [e]  = edges_towards ~node:x t in 
+        print_string "\n"; print_int e; print_string "\n";
+        let n = fst (edge_get_nodes ~edge:e t) in
+        t |> edge_rem ~edge:e
+          |> edge_add ~from:n ~towards:y
     in
 
     let new_graph = {
@@ -564,7 +579,7 @@ let trace_split ptg =
     let new_graph_2 = 
         new_graph |> apply ~f:copy_pre_conn  ~elems:corres
     in
-    (trids, ptg.traced, new_graph_2);;
+    (ptg.traced, trids, new_graph_2);;
 
 (**** 
  * edge merging, preserving the ordering of lists
@@ -587,13 +602,18 @@ let edge_remove_node ~first:e1 ~using:b ~second:e2 t =
     let a_out = edges_from    ~node:a t in 
     let c_in  = edges_towards ~node:c t in 
 
+    let update_func x = function
+        | Some l -> Some (remove_once x l)
+        | None   -> None
+    in
+
     { t with
       edges    = t.edges    
-              |> id_remove b ; 
+              |> id_update b (update_func e2) ; 
 
       co_edges = t.co_edges 
               |> id_add c (replace_once e2 e1 c_in) 
-              |> id_remove b ;
+              |> id_update b (update_func e1) ;
 
       arrows = t.arrows  
             |> id_remove e2
@@ -647,16 +667,27 @@ let rec dispatch_with ~f ~from1 ~from2 ~fst ~snd g =
  * along with the translation function 
  *)
 let replicate ptg = 
-    let m = !counter in 
-    let translate x = x + m + 1 in
+    let m = !counter   in 
+    let e = !e_counter in 
+    let translate x = x + m + 1   in
+    let e_translate x = x + e + 1 in 
 
-    let update_label m (oldid,lbl) =
-        id_add (translate oldid) lbl m
+
+    let update_label map (oldid,value) =
+        id_add (translate oldid) value map
+    in
+
+    let update_arrows map (oldid,(n1,n2)) = 
+        id_add (e_translate oldid) (translate n1,translate n2) map 
+    in
+
+    let update_edges map (oldid,l) = 
+        id_add (translate oldid) (List.map e_translate l) map 
     in
 
 
-
-    counter := translate m; 
+    counter   := translate m; 
+    e_counter := e_translate e;
     
     (translate, {
         
@@ -670,11 +701,11 @@ let replicate ptg =
         
         edges  = ptg.edges     
               |> id_bindings
-              |> List.fold_left update_label id_empty;
+              |> List.fold_left update_edges id_empty;
               
         co_edges  = ptg.co_edges     
               |> id_bindings
-              |> List.fold_left update_label id_empty;
+              |> List.fold_left update_edges id_empty;
 
         labels = ptg.labels
               |> id_bindings
@@ -682,7 +713,7 @@ let replicate ptg =
 
         arrows = ptg.arrows
               |> id_bindings
-              |> List.fold_left update_label id_empty ;
+              |> List.fold_left update_arrows id_empty ;
 
     });; 
 

@@ -159,6 +159,7 @@ let circuit_of_name = function
     | "MUX"  -> const "MUX"  3 1
     | "BOT"  -> const "BOT"  0 1
     | "WAIT" -> const "WAIT" 1 1
+    | "DISC" -> const "DISC" 1 0
     |  x  -> const x   1 1;;
 
 (**** THE GRAMMAR 
