@@ -154,6 +154,7 @@ let parse_sstring c s i = (ign_space <*>> parse_string c <<*> ign_space) s i;;
 let circuit_of_name = function
     | "F" -> const "F" 1 1
     | "G" -> const "G" 1 1
+    | "H" -> const "H" 2 2
     | "HIGH" -> const "HIGH" 0 1
     | "LOW"  -> const "LOW"  0 1
     | "MUX"  -> const "MUX"  3 1

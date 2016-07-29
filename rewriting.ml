@@ -219,6 +219,33 @@ let reduce_gate ~node:n t =
     else
         t;;
 
+
+(***
+ * Put a delay into the normal form 
+ * (a single node). Apply this function 
+ * to each node to put the whole graph into 
+ * normal form 
+ *
+ * Creates new nodes that are NOT delays,
+ * so if you want to normalize a whole graph,
+ * just iterate over the ORIGINAL nodes of 
+ * the graph.
+ *)
+let normalize_delay ~node:n ptg = 
+    try 
+        let (Some (Gate Wait)) = id_find n ptg.labels in 
+        let [e]                = edges_towards ~node:n ptg in 
+
+        let trace_node         = newid ()  in 
+        let trace_edge         = neweid () in 
+        
+        ptg |> edge_insert_node ~edge:e ~node:trace_node ~using:trace_edge 
+            |> trace_add ~node:trace_node
+            |> main_rem  ~node:n
+            |> delay_add ~node:n
+    with
+        Match_failure _ -> ptg;;
+
 (* 
  * TODO
  * convince that it does the right thing 
@@ -234,15 +261,16 @@ let rewrite_delays g1 =
     let (pre2,post2,g2) = trace_split g2 in 
 
     (* Creating new special nodes *)
-    let new_trace   = newids (List.length post1)      in 
-    let new_inputs  = newids (List.length g1.iports)  in 
-    let new_delays  = newids (List.length g1.oports)  in 
-    let new_outputs = newids (List.length g1.oports)  in 
+    let new_trace    = newids (List.length post1)      in (* trace dispatch    *)
+    let new_inputs   = newids (List.length g1.iports)  in (* input dispatch    *)
+    let new_delays   = newids (List.length g1.oports)  in (* delays at the end *)
+    let new_outputs  = newids (List.length g1.oports)  in (* outputs merge     *)
 
-    let bottoms_pre  = newids (List.length post1)     in 
-    let bottoms_ipts = newids (List.length g1.iports) in 
+    let bottoms_pre  = newids (List.length post1)     in (* bottoms for the trace  *)
+    let bottoms_ipts = newids (List.length g1.iports) in (* bottoms for the inputs *)
 
 
+    (* Determines if a trace node is a delayed one (the next thing is a delay) *)
     let is_delayed a _ g = 
         match post_nodes ~node:a g with
             | [x] -> 
@@ -253,36 +281,46 @@ let rewrite_delays g1 =
                     end
             | _         -> false
     in
-                    
-
-    ptg_merge g1 g2
-        |> batch ~f:(label_set ~label:Disconnect) ~nodes:post2
+    
+    (* Starting by merging the two copies *)
+    let new_ptg = ptg_merge g1 g2
 
         (** adding trace nodes in reverse order to keep the same order
          * in the end ...
          *)
-        |> batch ~f:trace_add  ~nodes:(List.rev new_trace)
-        |> batch ~f:main_add   ~nodes:(bottoms_pre @ bottoms_ipts @ new_delays)
+        (*|> batch ~f:trace_add  ~nodes:(List.rev new_trace)*)
+        |> batch ~f:main_add   ~nodes:(bottoms_pre @ bottoms_ipts @ new_delays @ new_trace)
+        (** adding nodes in reverse order to keep the same order
+         * in the end ...
+         *)
+        |> batch ~f:iport_add    ~nodes:(List.rev new_inputs)
+        |> batch ~f:oport_add    ~nodes:(List.rev new_outputs)
 
+        (* Dispatching the trace *)
         |> dispatch_with  ~f:is_delayed
                           ~from1:new_trace 
                           ~from2:bottoms_pre 
                           ~fst:pre1       
                           ~snd:pre2
 
+        (* Dispatching the inputs *)
         |> dispatch_with  ~f:is_delayed        
                           ~from1:new_inputs         
                           ~from2:bottoms_ipts
                           ~fst:g1.iports  
                           ~snd:g2.iports 
 
-        |> connect        ~from:new_trace ~towards:post1
-
-
+        (* Disconnecting the trace output for the second graph *)
+        |> batch ~f:(label_set ~label:Disconnect)  ~nodes:post1 
+        |> batch ~f:(label_set ~label:Disconnect)  ~nodes:post2 
+        |> batch ~f:(label_set ~label:(Gate Wait)) ~nodes:new_delays
         |> batch ~f:(label_set ~label:(Value Bottom)) 
                  ~nodes:(bottoms_pre @ bottoms_ipts) 
-
         |> batch ~f:label_rem ~nodes:(g1.delays @ g2.delays)
+
+    
+        (* Reconnect the trace *)
+        (*|> connect        ~from:post1 ~towards:new_trace*)
 
         |> connect        ~from:g1.oports      
                           ~towards:new_delays
@@ -290,12 +328,9 @@ let rewrite_delays g1 =
         |> mk_join        ~fst:new_delays 
                           ~snd:g2.oports
                           ~towards:new_outputs
+    in
+    (new_trace, new_ptg);;
 
-        (** adding nodes in reverse order to keep the same order
-         * in the end ...
-         *)
-        |> batch ~f:iport_add    ~nodes:(List.rev new_inputs)
-        |> batch ~f:oport_add    ~nodes:(List.rev new_outputs);;
 
 (**
  * 
@@ -305,16 +340,16 @@ let rewrite_delays g1 =
  *)
 let unfold_trace g1 = 
     if g1.traced <> [] then 
-        let (_,g2) = replicate g1 in 
+        let (pre2,g2) = rewrite_delays (snd (replicate g1)) in
 
         let (pre1,post1,g1) = trace_split g1 in 
-        let (pre2,post2,g2) = trace_split g2 in 
+        (*let (pre2,post2,g2) = trace_split g2 in *)
 
         let new_inputs   = newids (List.length g1.iports) in 
         
         ptg_merge g1 g2
-             |> batch ~f:(label_set ~label:Disconnect)  ~nodes:post2 
-             |> batch ~f:(label_set ~label:Disconnect)  ~nodes:g1.oports
+             (*|> batch ~f:(label_set ~label:Disconnect)    ~nodes:post2 *)
+             |> batch ~f:(label_set ~label:Disconnect)    ~nodes:g1.oports
 
              |> mk_fork  ~from:post1       ~fst:pre2      ~snd:pre1 
              |> mk_fork  ~from:new_inputs  ~fst:g1.iports ~snd:g2.iports

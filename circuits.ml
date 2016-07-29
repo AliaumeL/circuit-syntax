@@ -12,7 +12,7 @@ open Ptg ;;
 (******* DOT OUTPUT ... *******)
 
 let rec list_index x = function
-    | [] -> failwith "oups"
+    | [] -> failwith "(circuits.ml) [list_index] : error, no such thing"
     | t :: q when t = x -> 0
     | t :: q -> 1 + list_index x q;;
 
@@ -245,6 +245,7 @@ let report txt ptg =
     incr fc;
     let base = "test" ^ string_of_int !fc in 
     print_string (txt ^ ": " ^ base ^ "\n");
+    ptg |> string_of_ptg |> print_string ;
     ptg_to_file (base ^ ".dot") ptg;
     Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");;
 
@@ -288,6 +289,7 @@ let () =
     print_string "CIRCUITS - \n";
     let x = ref (get_ptg_of_file "lines.txt") in 
     report "INIT" !x;
+    report "INIT" (snd (Rewriting.rewrite_delays !x));
 
     let n = 6 in 
 
