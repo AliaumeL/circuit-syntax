@@ -287,7 +287,12 @@ let looping_reduction_step x =
 
 let () = 
     print_string "CIRCUITS - \n";
-    let x = ref (get_ptg_of_file "lines.txt") in 
+    let file = if Array.length Sys.argv > 1 then 
+                    Sys.argv.(1) 
+               else
+                   "lines.txt"
+    in
+    let x = ref (get_ptg_of_file file) in 
     report "INIT" !x;
     report "INIT" (snd (Rewriting.rewrite_delays !x));
 
