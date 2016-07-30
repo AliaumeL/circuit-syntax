@@ -129,6 +129,8 @@ let convert_label = function
                    | "PMOS" -> Gate  Pmos
                    | "WAIT" -> Gate  Wait
                    | "DISC" -> Disconnect
+                   | "FORK" -> Gate Fork
+                   | "JOIN" -> Gate Join
                    |   x    -> Gate (Box x)
             end;;
 
@@ -275,7 +277,7 @@ let rules = [ Rewriting.remove_identity    ;
 
 
 let looping_reduction_step x = 
-    let x = Rewriting.mark_and_sweep x in
+    let x = Rewriting.garbage_collect_dual x in
     report "GARBAGE COLLECT" x;
     let x = rewrite_local rules x in
     report "LOCAL REWRITE" x;

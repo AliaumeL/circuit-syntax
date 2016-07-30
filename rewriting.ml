@@ -82,6 +82,8 @@ let propagate_fork ~node:n t =
  * Propagating bottoms 
  * through joins and disconnect trough
  * forks
+ *
+ * NOTE useless because of join reducing gate ... 
  *)
 let bottom_join ~node:n t = 
     try (* pattern matching failure means no modification *)
@@ -142,10 +144,30 @@ let reduce_mux inputs =
      * nmos
      * pmos
  *)
+let reduce_nmos = fun _ -> NoOP;;
+let reduce_pmos = fun _ -> NoOP;;
+let reduce_join inputs = 
+    try 
+        let [a;b] = inputs in 
+        match (a,b) with
+            | Some (Value High), Some (Value Low)  -> Result Top
+            | Some (Value Low),  Some (Value High) -> Result Top
+            | Some (Value High), Some (Value High) -> Result High
+            | Some (Value Low),  Some (Value Low)  -> Result Low
+            | Some (Value Top), _                  -> Result Top
+            | _, Some (Value Top)                  -> Result Top
+            | Some (Value Bottom),_                -> Wire 1
+            | _, Some (Value Bottom)               -> Wire 0
+            |     _                                -> NoOP
+    with
+        Match_failure _ -> NoOP;;
 
 
 let fun_of_gate = function
-    | Mux -> reduce_mux
+    | Mux  -> reduce_mux
+    | Nmos -> reduce_nmos
+    | Pmos -> reduce_pmos
+    | Join -> reduce_join
     | _   -> (fun _ -> NoOP);;
 
 (** 
@@ -201,8 +223,8 @@ let reduce_gate ~node:n t =
                          *)
                         let m = newid  () in 
                         let e = neweid () in 
-                        t |> main_add  ~node:n 
-                          |> label_set ~node:n ~label:(Value l)
+                        t |> main_add  ~node:m
+                          |> label_set ~node:m ~label:(Value l)
                           |> edge_insert_node ~edge:o ~node:m ~using:e
                         (* remove the edge between the inserted node 
                          * and the gate
@@ -245,6 +267,21 @@ let normalize_delay ~node:n ptg =
             |> delay_add ~node:n
     with
         Match_failure _ -> ptg;;
+
+
+(**
+ * Put a graph into the normal timed form 
+ *)
+let normal_timed_form ptg = 
+    let is_delay n = 
+        match id_find n ptg.labels with
+            | Some (Gate Wait) -> true
+            |  _               -> false
+    in
+    let delayed_nodes =
+        ptg.nodes |> List.filter is_delay
+    in
+    ptg |> batch ~f:normalize_delay ~nodes:delayed_nodes;;
 
 (* 
  * TODO
@@ -366,7 +403,24 @@ let unfold_trace g1 =
     ;;
 
 (**
- * Mark nodes
+ * Mark nodes to calculate 
+ * the accessible nodes in the DUAL graph
+ *)
+let rec mark_nodes_dual ~seen ~nexts ptg = 
+    match nexts with
+        | [] -> seen
+        | t :: q ->
+                if List.mem t seen then 
+                    mark_nodes_dual ~seen:seen ~nexts:q ptg
+                else
+                    let pre_nodes = pre_nodes ~node:t ptg in 
+                    mark_nodes_dual ~seen:(t :: seen)
+                                    ~nexts:(pre_nodes @ q)
+                                    ptg;;
+
+(**
+ * Mark nodes to calculate 
+ * the accessible nodes in the graph
  *)
 let rec mark_nodes ~seen ~nexts ptg = 
     match nexts with
@@ -375,9 +429,9 @@ let rec mark_nodes ~seen ~nexts ptg =
                 if List.mem t seen then 
                     mark_nodes ~seen:seen ~nexts:q ptg
                 else
-                    let pre_nodes = pre_nodes ~node:t ptg in 
+                    let post_nodes = post_nodes ~node:t ptg in 
                     mark_nodes ~seen:(t :: seen)
-                               ~nexts:(pre_nodes @ q)
+                               ~nexts:(post_nodes @ q)
                                ptg;;
 
 (**
@@ -405,8 +459,8 @@ let rec mark_nodes ~seen ~nexts ptg =
  * code is better than optimized one)
  *
  *)
-let mark_and_sweep t = 
-    let reachable         = mark_nodes ~seen:t.iports ~nexts:t.oports t in 
+let garbage_collect_dual t = 
+    let reachable         = mark_nodes_dual ~seen:t.iports ~nexts:t.oports t in 
     let filter_func x     = not (List.mem x reachable) in 
     let is_reachable f e  = 
         List.mem (f (edge_get_nodes ~edge:e t)) reachable 
@@ -483,4 +537,3 @@ let example_ptg_4 =
               |> main_add  ~node:t
               |> edge_add  ~from:i ~towards:t
               |> edge_add  ~from:t ~towards:o;;
-

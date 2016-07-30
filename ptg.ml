@@ -105,7 +105,8 @@ type value =
     | High
     | Low 
     | Top 
-    | Bottom;;
+    | Bottom
+    | Wave of value list ;;
 
 
 type label = 
@@ -191,11 +192,12 @@ let string_of_gate = function
     | Wait  -> "W"
     | Mux   -> "M";;
 
-let string_of_value = function
+let rec string_of_value = function
     | High       -> "H"
     | Low        -> "L"
     | Top        -> "T"
-    | Bottom     -> "Z";;
+    | Bottom     -> "Z"
+    | Wave w     -> w |> List.map string_of_value |> String.concat "::";;
 
 let string_of_label = function
     | Disconnect -> "D"

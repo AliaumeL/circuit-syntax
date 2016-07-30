@@ -152,16 +152,20 @@ let parse_sstring c s i = (ign_space <*>> parse_string c <<*> ign_space) s i;;
  * containing the mappings ... 
  *)
 let circuit_of_name = function
-    | "F" -> const "F" 1 1
-    | "G" -> const "G" 1 1
-    | "H" -> const "H" 2 2
+    | "F"    -> const "F"    1 1
+    | "G"    -> const "G"    1 1
+    | "H"    -> const "H"    2 2
+    | "P"    -> const "PMOS" 2 1
+    | "N"    -> const "NMOS" 2 1
     | "HIGH" -> const "HIGH" 0 1
     | "LOW"  -> const "LOW"  0 1
     | "MUX"  -> const "MUX"  3 1
     | "BOT"  -> const "BOT"  0 1
     | "WAIT" -> const "WAIT" 1 1
     | "DISC" -> const "DISC" 1 0
-    |  x  -> const x   1 1;;
+    | "FORK" -> const "FORK" 1 2
+    | "JOIN" -> const "JOIN" 2 1
+    |  x     -> const x      1 1;;
 
 (**** THE GRAMMAR 
  *
