@@ -105,13 +105,12 @@ type value =
     | High
     | Low 
     | Top 
-    | Bottom
-    | Wave of value list ;;
-
+    | Bottom;;
 
 type label = 
     | Disconnect       (* dangling node *)
-    | Value   of value
+    | Value   of value 
+    | Wave    of value list
     | Gate    of gate;;
 
 
@@ -196,8 +195,7 @@ let rec string_of_value = function
     | High       -> "H"
     | Low        -> "L"
     | Top        -> "T"
-    | Bottom     -> "Z"
-    | Wave w     -> w |> List.map string_of_value |> String.concat "::";;
+    | Bottom     -> "Z";;
 
 let string_of_label = function
     | Disconnect -> "D"

@@ -144,20 +144,61 @@ let reduce_mux inputs =
      * nmos
      * pmos
  *)
-let reduce_nmos = fun _ -> NoOP;;
-let reduce_pmos = fun _ -> NoOP;;
+let reduce_nmos inputs = 
+    try 
+        let [a;b] = inputs in 
+        match (a,b) with
+            | Some (Value Bottom), _                 -> Result Top
+            | Some (Value Low)   , _                 -> Result Bottom
+            | Some (Value High), Some (Value High)   -> Result Bottom
+            | Some (Value High), Some (Value x)      -> Result x
+            | Some (Value Top) , Some (Value Bottom) -> Result Bottom
+            | Some (Value Top) , Some (Value _)      -> Result Top 
+            | _ -> NoOP
+    with
+        Match_failure  _ -> NoOP;;
+
+
+let reduce_pmos inputs = 
+    try 
+        let [a;b] = inputs in 
+        match (a,b) with
+            | Some (Value Bottom), _                 -> Result Top
+            | Some (Value Low)   , _                 -> Result Bottom
+            | Some (Value High), Some (Value High)   -> Result Bottom
+            | Some (Value High), Some (Value x)      -> Result x
+            | Some (Value Top) , Some (Value Bottom) -> Result Bottom
+            | Some (Value Top) , Some (Value _)      -> Result Top 
+            | _ -> NoOP
+    with
+        Match_failure  _ -> NoOP;;
+
+
+let combine_values v1 v2 = match (v1,v2) with
+    | Low,  Low -> Low
+    | High,High -> High
+    | Bottom,x  -> x
+    | x,Bottom  -> x
+    | High, Low -> Top
+    | Low, High -> Top
+    | Top,x     -> Top
+    | x,Top     -> Top;;
+
+let rec combine_values_list w1 w2 = match (w1,w2) with
+    | [],_      -> w2
+    | _,[]      -> w1
+    | a::b,c::d -> (combine_values a c) :: combine_values_list b d;;
+
 let reduce_join inputs = 
     try 
         let [a;b] = inputs in 
         match (a,b) with
-            | Some (Value High), Some (Value Low)  -> Result Top
-            | Some (Value Low),  Some (Value High) -> Result Top
-            | Some (Value High), Some (Value High) -> Result High
-            | Some (Value Low),  Some (Value Low)  -> Result Low
-            | Some (Value Top), _                  -> Result Top
-            | _, Some (Value Top)                  -> Result Top
+            (* Fist of all, the short-circuits *)
             | Some (Value Bottom),_                -> Wire 1
             | _, Some (Value Bottom)               -> Wire 0
+            (* Then the list values *)
+            | Some (Value x), Some (Value y)       -> Result (combine_values x y)
+            (* otherwise do nothing *)
             |     _                                -> NoOP
     with
         Match_failure _ -> NoOP;;
