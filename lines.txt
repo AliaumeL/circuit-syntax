@@ -1,1 +1,2 @@
-(HIGH | BOT) . JOIN
+link a:b for
+(:b | 1) . JOIN . F . WAIT . (1 | HIGH) . JOIN . FORK . (a: | 1)

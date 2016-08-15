@@ -18,9 +18,10 @@ open Ptg;;
  *)
 let propagate_constant ~node:n t = 
     try (* pattern matching failure means no modification *)
-        let Some (Value v) = id_find n t.labels       in 
-        let [traced_node]  = post_nodes ~node:n     t in 
-        if not (List.mem traced_node t.traced) then 
+        let Some (Value v) = id_find n t.labels             in 
+        let [traced_node]  = post_nodes ~node:n           t in 
+        let [next_node  ]  = post_nodes ~node:traced_node t in 
+        if not (List.mem traced_node t.traced) || List.mem next_node t.delays then 
             t
         else
             t |> trace_rem      ~node:traced_node
@@ -306,6 +307,7 @@ let normalize_delay ~node:n ptg =
             |> trace_add ~node:trace_node
             |> main_rem  ~node:n
             |> delay_add ~node:n
+            |> label_set ~node:n ~label:(Gate Wait)
     with
         Match_failure _ -> ptg;;
 
@@ -363,10 +365,6 @@ let rewrite_delays g1 =
     (* Starting by merging the two copies *)
     let new_ptg = ptg_merge g1 g2
 
-        (** adding trace nodes in reverse order to keep the same order
-         * in the end ...
-         *)
-        (*|> batch ~f:trace_add  ~nodes:(List.rev new_trace)*)
         |> batch ~f:main_add   ~nodes:(bottoms_pre @ bottoms_ipts @ new_delays @ new_trace)
         (** adding nodes in reverse order to keep the same order
          * in the end ...
@@ -396,23 +394,14 @@ let rewrite_delays g1 =
                  ~nodes:(bottoms_pre @ bottoms_ipts) 
         |> batch ~f:label_rem ~nodes:(g1.delays @ g2.delays)
 
-    
-        (* Reconnect the trace *)
-        (*|> connect        ~from:post1 ~towards:new_trace*)
-
         |> connect        ~from:g1.oports      
                           ~towards:new_delays
 
         |> mk_join        ~fst:new_delays 
                           ~snd:g2.oports
                           ~towards:new_outputs
-        (* TODO do it more efficiently !!! 
-         * We already know the delay nodes 
-         * that are added !
-         *)
-        |> normal_timed_form 
     in
-    (new_trace, new_ptg);;
+    (new_trace, new_delays, new_ptg);;
 
 
 (**
@@ -423,12 +412,20 @@ let rewrite_delays g1 =
  *)
 let unfold_trace g1 = 
     if g1.traced <> [] then 
-        let (pre2,g2) = rewrite_delays (snd (replicate g1)) in
+        (* Construct a new graph with the 
+         * right dispatching of inputs - trace nodes,
+         * the disconnects in the right places,
+         * and gives : 
+             * the pre nodes to connect to 
+             * the new delays that were created
+             * the graph itself
+         *)
+        let (pre2,new_delays,g2) = rewrite_delays (snd (replicate g1)) in
 
         let (pre1,post1,g1) = trace_split g1 in 
 
         let new_inputs   = newids (List.length g1.iports) in 
-        
+
         ptg_merge g1 g2
              |> batch ~f:(label_set ~label:Disconnect)    ~nodes:g1.oports
 
@@ -441,6 +438,9 @@ let unfold_trace g1 =
              |> batch ~f:trace_add    ~nodes:(List.rev pre1)
              |> batch ~f:iport_add    ~nodes:(List.rev new_inputs)
              |> batch ~f:oport_add    ~nodes:(List.rev g2.oports)
+
+             |> batch ~f:normalize_delay ~nodes:new_delays
+             |> batch ~f:delay_add       ~nodes:g1.delays
     else
         g1
 

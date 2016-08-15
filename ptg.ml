@@ -89,7 +89,7 @@ let merger_v k a b = match a, b with
   | Some a, None              -> Some a
   | None  , Some b            -> Some b
   | Some a, Some b when a = b -> Some a
-  | Some a, Some b            -> Some a ;; (** default value ... Careful !!!*)
+  | Some a, Some b            -> failwith "MERGE ERROR CONFLICTING VALUES";; (* Some a ;; (** default value ... Careful !!!*)*)
 
 
 type gate = 
@@ -110,7 +110,7 @@ type value =
 type label = 
     | Disconnect       (* dangling node *)
     | Value   of value 
-    | Wave    of value list
+    (*| Wave    of value list*)
     | Gate    of gate;;
 
 
@@ -214,6 +214,10 @@ let string_of_ptg ptg =
         ptg.traced |> List.map (fun x -> string_of_int x) |> String.concat ", ";
         "\tDELAYS : ";
         ptg.delays |> List.map (fun x -> string_of_int x) |> String.concat ", ";
+        "\tLABELS : ";
+        ptg.labels |> id_bindings
+                   |> List.map (fun (a,b) -> "node " ^ string_of_int a ^ " = " ^ string_of_label b)
+                   |> String.concat ", ";
         "\tEDGES";
         ptg.arrows |> id_bindings
                    |> List.map (fun (e,(x,y)) -> 

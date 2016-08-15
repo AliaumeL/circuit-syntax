@@ -45,7 +45,11 @@ let dot_of_ptg ptg =
             | Some (Gate Fork) 
             | Some Disconnect
             | Some (Value _) -> None
-            | _              -> Some (1 + list_index eid l)
+            | _              -> 
+                    if List.mem nid ptg.delays then
+                        None 
+                    else
+                        Some (1 + list_index eid l)
     in
 
     let draw_edge eid (a,b) = 
@@ -82,12 +86,14 @@ let dot_of_ptg ptg =
 
     let traced  = 
         ptg.traced
+            (*|> List.map (fun x -> mkNode x (emptyMod |> mod_color "red" |> mod_shape "diamond"))*)
             |> List.map (fun x -> mkNode x (emptyMod |> mod_shape "point" |> mod_width 0.1 |> mod_color "red"))
             |> String.concat "\n"
     in
 
     let delays  = 
         ptg.delays
+            (*|> List.map (fun x -> mkNode x (emptyMod |> mod_color "grey" |> mod_shape "diamond"))*)
             |> List.map (fun x -> mkNode x (emptyMod |> mod_shape "point" |> mod_width 0.1 |> mod_color "grey"))
             |> String.concat "\n"
     in
@@ -245,7 +251,7 @@ let fc = ref 0;;
 
 let report txt ptg = 
     incr fc;
-    let base = "test" ^ string_of_int !fc in 
+    let base = Printf.sprintf "test%03d" !fc in 
     print_string (txt ^ ": " ^ base ^ "\n");
     ptg |> string_of_ptg |> print_string ;
     ptg_to_file (base ^ ".dot") ptg;
@@ -268,7 +274,7 @@ let rewrite_local rules ptg =
     !inter;;
         
    
-let rules = [ Rewriting.remove_identity    ;
+let rules = [ Rewriting.remove_identity    ; 
               Rewriting.propagate_constant ;
               Rewriting.propagate_fork     ;
               Rewriting.bottom_join        ;
@@ -295,9 +301,10 @@ let () =
                    "lines.txt"
     in
     let x = ref (get_ptg_of_file file) in 
+    report "INIT" !x;
     x := Rewriting.normal_timed_form !x;
     report "INIT" !x;
-    report "INIT" (snd (Rewriting.rewrite_delays !x));
+    report "INIT" (Rewriting.unfold_trace !x); 
 
     let n = 6 in 
 

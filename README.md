@@ -62,6 +62,7 @@ The constant circuits are in capital letters. The following circuits are availab
 * HIGH (value high)
 * LOW  (value low)
 * DISC (disconnect gate)
+* WAIT (delay node)
 * Any other capital letter circuit is considered as a « box » with type 1->1, except `F`, `G` and `H` (for debugging purpose)
 
 The symmetry is not a circuit yet.
@@ -105,3 +106,9 @@ val bindo     : string                 -> circ   -> circ
 val empty     : circ
 val print_ast : circ                   -> string
 ```
+
+The other circuits (constant circuits) are constructed 
+using the `const` operator and setting the string parameter 
+with the name of the circuit you want. The list of
+reserved circuit names and their meaning is described in 
+the constant circuit section of the syntax.
