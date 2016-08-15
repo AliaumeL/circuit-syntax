@@ -1,7 +1,7 @@
 
 OCAMLCC=ocamlc
 OSRC=utils.ml lexer.ml ast.ml parser.ml dot.ml solver.ml typesystem.ml dags.ml compiler.ml ptg.ml rewriting.ml
-OSRCL=utils.mli ast.mli dot.mli typesystem.mli dags.mli
+OSRCL=utils.mli
 
 .PHONY: test clean doc
 
