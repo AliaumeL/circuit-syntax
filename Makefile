@@ -21,3 +21,5 @@ circuits: $(OSRC) circuits.ml
 clean:
 	rm *.cmi
 	rm *.cmo
+	rm *.pdf
+	rm *.dot
