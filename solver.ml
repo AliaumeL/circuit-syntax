@@ -11,7 +11,13 @@
 
 open Utils;;
 
-let produit = Array.map2 (fun a b -> a *. b);;  
+let produit a b = 
+    let x = Array.make (Array.length a) 0. in  
+    for i = 0 to (Array.length a) - 1 do 
+        x.(i) <- a.(i) *. b.(i);
+    done;
+    x;;
+
 let somme   = Array.fold_left (fun a b -> a +. b) 0.;;
 
 
