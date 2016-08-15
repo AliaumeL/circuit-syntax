@@ -1,23 +1,20 @@
 
 OCAMLCC=ocamlc
 OSRC=utils.ml lexer.ml ast.ml parser.ml dot.ml solver.ml typesystem.ml dags.ml compiler.ml ptg.ml rewriting.ml
-OSRCL=utils.mli
 
 .PHONY: test clean doc
 
-doc/index.html: $(OSRCL) $(OSRC)
+doc/index.html: $(OSRC)
 	ocamldoc -html -d doc $(OSRCL)
 
 doc: doc/index.html
 	open doc/index.html
 
-tests: $(OSRC) $(OSRCL) tests.ml
-	$(OCAMLCC) $(OSRCL)
+tests: $(OSRC) tests.ml
 	$(OCAMLCC) -g -o tests $(OSRC) tests.ml
 	./tests
 
-circuits: $(OSRC) $(OSRCL) circuits.ml
-	$(OCAMLCC) $(OSRCL)
+circuits: $(OSRC) circuits.ml
 	$(OCAMLCC) -g -o circuits $(OSRC) circuits.ml
 	./circuits
 
