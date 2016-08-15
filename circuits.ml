@@ -295,6 +295,7 @@ let () =
                    "lines.txt"
     in
     let x = ref (get_ptg_of_file file) in 
+    x := Rewriting.normal_timed_form !x;
     report "INIT" !x;
     report "INIT" (snd (Rewriting.rewrite_delays !x));
 

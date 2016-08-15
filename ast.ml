@@ -93,7 +93,7 @@ let id x         = Circ (Id x);;
 let idpoly       = Circ IdPoly;;
 let links l c    = Circ (Links (l,c));;
 
-let twist        =
+let symmetry     =
     let x = newvarname () in 
     let y = newvarname () in 
     let z = newvarname () in 

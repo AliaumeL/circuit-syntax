@@ -12,12 +12,6 @@ This program needs
 
 ## Building and running 
 
-To build the project and create the `comp` executable run 
-
-```
-make comp 
-```
-
 To run the tests use 
 
 ```
@@ -51,12 +45,63 @@ The basic circuits are the following ones
 4. The trace operator
 5. The switch operator
 
-### Linking 
 
-...
+### Syntax Definition
 
-# Things that would be done differently 
+#### Constant circuits
 
-1. Separate labelling from meaning : a label is just a string
-2. Do all the stuff directly on liDAGS rather than the PTG version
-3. Use name translation rather than a global ref count (leads to mistakes)
+The constant circuits are in capital letters. The following circuits are available
+
+* FORK
+* JOIN
+* MUX
+* NMOS
+* PMOS
+* BOT  (value bottom)
+* TOP  (value illegal)
+* HIGH (value high)
+* LOW  (value low)
+* DISC (disconnect gate)
+* Any other capital letter circuit is considered as a « box » with type 1->1, except `F`, `G` and `H` (for debugging purpose)
+
+The symmetry is not a circuit yet.
+
+#### Operators 
+
+Link operator works with the syntax
+
+```
+link a:b c:d ... for CIRCUIT
+```
+
+There is also the `.` for sequential composition and the `|` for parallel composition.
+
+#### SEQ and PAR
+
+Inside a `SEQ ... END` bloc the newlines are replaced with sequential composition of the lines (with implicit parenthesis
+around each line). The same goes for parallel composition and `PAR ... END`.
+
+
+### Building circuits with the AST direcly 
+
+It is possible to direcly generate AST code by importing `ast.ml` and then printing it into a file 
+with the pretty printing function in `ast.ml`. 
+
+Ast construction is made simple by the helper functions to construct it 
+
+```ocaml
+val ( === )   : circ                   -> circ   -> circ
+val ( ||| )   : circ                   -> circ   -> circ
+val vari      : string                 -> circ
+val varo      : string                 -> circ
+val const     : string                 -> int    -> int  -> circ
+val id        : int                    -> circ
+val idpoly    : circ
+val links     : (string * string) list -> circ   -> circ
+val symmetry  : circ
+val trace     : circ                   -> circ
+val bindi     : string                 -> circ   -> circ
+val bindo     : string                 -> circ   -> circ
+val empty     : circ
+val print_ast : circ                   -> string
+```

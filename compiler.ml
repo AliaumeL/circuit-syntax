@@ -135,7 +135,7 @@ let test5 =
     bindi "x" ((id 1 ||| vari "x") === const "F" 2 1);;
 
 let test6 = 
-    const "F" 2 2 === twist === const "G" 2 2;; 
+    const "F" 2 2 === symmetry === const "G" 2 2;; 
 
 let tests = List.mapi (fun i x -> ("test " ^ string_of_int i, fun () -> typecheck_and_compile x; ())) 
     [ test1a; test1b; test1c; test2; test3; test4; test5; test6 ];;

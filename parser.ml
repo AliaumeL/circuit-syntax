@@ -155,8 +155,8 @@ let circuit_of_name = function
     | "F"    -> const "F"    1 1
     | "G"    -> const "G"    1 1
     | "H"    -> const "H"    2 2
-    | "P"    -> const "PMOS" 2 1
-    | "N"    -> const "NMOS" 2 1
+    | "PMOS" -> const "PMOS" 2 1
+    | "NMOS" -> const "NMOS" 2 1
     | "HIGH" -> const "HIGH" 0 1
     | "LOW"  -> const "LOW"  0 1
     | "MUX"  -> const "MUX"  3 1

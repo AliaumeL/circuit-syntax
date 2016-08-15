@@ -286,7 +286,7 @@ let test5 =
     bindi "x" ((id 1 ||| vari "x") === const "F" 2 1);;
 
 let test6 = 
-    const "F" 2 2 === twist === const "G" 2 2;; 
+    const "F" 2 2 === symmetry === const "G" 2 2;; 
 
 let tests = [
     ("test1 a",    fun () -> let _ = calcul_type test1a in ());
@@ -296,6 +296,6 @@ let tests = [
     ("test3",      fun () -> let _ = calcul_type test3  in ());
     ("test trace", fun () -> let _ = calcul_type test4  in ());
     ("test bind",  fun () -> let _ = calcul_type test5  in ());
-    ("test twist", fun () -> let _ = calcul_type test6  in ());
+    ("test symmetry", fun () -> let _ = calcul_type test6  in ());
 ];;
 

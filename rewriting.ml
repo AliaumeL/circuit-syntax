@@ -406,6 +406,11 @@ let rewrite_delays g1 =
         |> mk_join        ~fst:new_delays 
                           ~snd:g2.oports
                           ~towards:new_outputs
+        (* TODO do it more efficiently !!! 
+         * We already know the delay nodes 
+         * that are added !
+         *)
+        |> normal_timed_form 
     in
     (new_trace, new_ptg);;
 
@@ -421,12 +426,10 @@ let unfold_trace g1 =
         let (pre2,g2) = rewrite_delays (snd (replicate g1)) in
 
         let (pre1,post1,g1) = trace_split g1 in 
-        (*let (pre2,post2,g2) = trace_split g2 in *)
 
         let new_inputs   = newids (List.length g1.iports) in 
         
         ptg_merge g1 g2
-             (*|> batch ~f:(label_set ~label:Disconnect)    ~nodes:post2 *)
              |> batch ~f:(label_set ~label:Disconnect)    ~nodes:g1.oports
 
              |> mk_fork  ~from:post1       ~fst:pre2      ~snd:pre1 
