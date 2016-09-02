@@ -221,40 +221,55 @@ let link ~vars ~dag:g =
     let c  = vi |> List.mapi (fun i v -> (v,i + m + 1)) in  
     let ci = List.length c in 
     (* d : vi -> node_id *)
-    let d  = vo |> List.mapi (fun i v -> (v,i + m + ci + 1)) in  
+    let d  = vo |> List.mapi (fun i v -> (v,i + m + ci + 1)) in 
+    let di = List.length d in 
 
-    (* FIXME 
-     * if fiberV x == [] then 
-     * the binding node is just a dangling node ...
-     * 
-     * Need to be seen !
+    (** adding the bottoms *)
+    let disc = c |> List.mapi (fun k (_,v) -> (k + m + ci + di + 1, v)) in 
+    let bots = d |> List.mapi (fun k (_,v) -> (k + m + ci + ci + di + 1, v)) in 
+
+
+    (* The edges for each instance of a variable to 
+     * the corresponding binding node 
      *)
     let ei = vi >>= (fun x -> 
                         fiberV (VarI x) g.labels >>= (fun v -> 
                             [anonym_link (of_option (imageV x c)) v]))
     in
 
+    (* The edges for each instance of a variable to 
+     * the corresponding binding node 
+     *)
     let eo = vo >>= (fun x -> 
                         fiberV (VarO x) g.labels >>= (fun v -> 
                             [anonym_link v (of_option (imageV x d))]))
     in
 
+    (* The edges between the binding nodes *)
     let eb = vars |> List.map (fun (x,y) -> anonym_link (of_option (imageV x d)) (of_option (imageV y c)))
                   |> remove_duplicates 
     in
+
+    let ebots = bots |> List.map (fun (x,y) -> anonym_link x y) in 
+    let edisc = disc |> List.map (fun (x,y) -> anonym_link y x) in
+
     let check_label = function 
         | VarI x -> not (List.mem x vi)
         | VarO x -> not (List.mem x vo)
         | _      -> true
     in
-    let new_labels = g.labels |> List.filter (fun x -> check_label (snd x)) in    
+    let new_labels = g.labels |> List.filter (fun x -> check_label (snd x))  in 
     {
         iports   = g.iports                                        ;
         oports   = g.oports                                        ;
-        nodes    = (List.map (fun x -> (snd x, 0, 0)) d) @
+        nodes    = (List.map (fun x -> (fst x, 0, 0)) disc) @ 
+                   (List.map (fun x -> (fst x, 0, 0)) bots) @
+                   (List.map (fun x -> (snd x, 0, 0)) d) @
                    (List.map (fun x -> (snd x, 0, 0)) c) @ g.nodes ;
-        edges    = ei @ eo @ eb @ g.edges                          ;
-        labels   = new_labels                                      ;
+        edges    = ebots @ edisc @ ei @ eo @ eb @ g.edges          ;
+        labels   = (List.map (fun x -> (fst x, Const "DISC")) disc) @ 
+                   (List.map (fun x -> (fst x, Const "BOT")) bots) @ 
+                   new_labels                                      ;
         ibinders = List.map snd c @ g.ibinders                     ;
         obinders = List.map snd d @ g.obinders                     ;
     };;

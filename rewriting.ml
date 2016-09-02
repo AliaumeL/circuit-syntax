@@ -85,6 +85,11 @@ let propagate_fork ~node:n t =
  * forks
  *
  * NOTE useless because of join reducing gate ... 
+ *
+ *
+ * FIXME There should be a global garbage collecting stuff 
+ * so that local reductions are not needed to replace 
+ * whole subcircuits with _|_ ...
  *)
 let bottom_join ~node:n t = 
     try (* pattern matching failure means no modification *)
@@ -550,11 +555,14 @@ let garbage_collect_dual t =
     
     let remove_node_safely ~node:n t = 
         print_string ("\tREMOVE NODE : " ^ string_of_int n ^ "\n");
+
+        (* The edges comming from a reachable node *)
         let pre  = t 
                 |> edges_towards  ~node:n 
                 |> List.filter (is_reachable fst)
         in
 
+        (* The edges going to a reachable node *)
         let post  = t 
                 |> edges_from  ~node:n 
                 |> List.filter (is_reachable snd)

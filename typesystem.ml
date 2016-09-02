@@ -119,8 +119,8 @@ let var_type nom a b =
     in
     (ivar,ovar,c,  
       { itype  = Var ivar;
-      otype  = Var ovar; 
-      vtypes = VarType.singleton nom [(ivar,ovar)]
+        otype  = Var ovar; 
+        vtypes = VarType.singleton nom [(ivar,ovar)]
       });;
 
 let union_vtypes a b = 
@@ -185,6 +185,12 @@ let calcul_type circuit =
                  |> make_equations  
                  |> (fun e -> constraints := e @ !constraints)
     in
+
+    (* accumulating the type 
+     *
+     * accum_type : (type, annotated circuit)
+     *
+     *)
     let accum_type = function
         | Id x          -> (base_type x x, TCirc (Id x, (Const x, Const x)))  
         | IdPoly        -> 
@@ -202,9 +208,11 @@ let calcul_type circuit =
         | VarI  y       -> let (_,o,c,v) = var_type y 0 1 in 
                            add_constraints c;
                            (v, TCirc (VarI y, (Const 0, Var o)))
+                           (*(base_type 0 1, TCirc (VarI y, (Const 0, Const 1)))*)
         | VarO  y       -> let (i,_,c,v) = var_type y 1 0 in 
                            add_constraints c;
                            (v, TCirc (VarO y, (Var i, Const 0)))
+                           (*(base_type 1 0, TCirc (VarO y, (Const 1, Const 0)))*)
         | Par ((a,annotA),(b,annotB))     -> 
                 let i = Var (newvarid ()) in 
                 let o = Var (newvarid ()) in 
@@ -248,7 +256,7 @@ let calcul_type circuit =
         | Solution v    -> (annotated,v) 
         | NoSol         -> failwith "Not typeable"
         | Negative _    -> failwith "Negative solution"
-        | ManySol liste -> failwith ("Many solution ... fix variable : " ^ (liste |> List.map string_of_int |> String.concat " or ")) 
+        | ManySol liste -> failwith ("Many solutions ... fix variable : " ^ (liste |> List.map string_of_int |> String.concat " or ")) 
 
 
 
