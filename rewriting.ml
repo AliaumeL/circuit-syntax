@@ -582,8 +582,99 @@ let garbage_collect_dual t =
           |> node_edges_rem ~node:n
     in
 
-    t |> batch ~f:remove_node_safely  ~nodes:nodes_to_delete 
+    t |> batch ~f:remove_node_safely  ~nodes:nodes_to_delete ;;
 
+
+
+
+
+
+(***** 
+ *
+ * Here lies the code that pattern matches for the outputs 
+ * checking if the first value is directly accessible 
+ *
+ *)
+exception NoFirstValue;;
+
+(* Tries to get the first value that will 
+ * get into the given node by 
+ * a simple pattern matchnig 
+ *
+ * (the node is supposed to have a single input)
+ *
+ * *)
+(* 
+ * Get the first output without having any delay 
+ * after 
+ *
+ * ( things to transform into bottoms ,
+ *   things to transform into identities,
+ *   value fetched )
+ *)
+let first_output_no_delay ~node:n ptg = 
+    try 
+        let [pre] = pre_nodes ~node:n ptg in 
+        match id_find pre ptg.labels with
+            | Some (Value v) -> 
+                    ([pre], [], v)
+            | _       -> raise NoFirstValue 
+    with
+        Match_failure _ -> raise NoFirstValue;;
+
+let first_output_only_delay ~node:n ptg = 
+    try 
+        let [pre] = pre_nodes ~node:n ptg in 
+        match id_find pre ptg.labels with
+            | Some (Gate Wait) -> 
+                    ([], [pre], Bottom)
+            | _       -> raise NoFirstValue 
+    with
+        Match_failure _ -> raise NoFirstValue;;
+
+let first_output_delay_and_value ~node:n ptg = 
+    try 
+        let [pre] = pre_nodes ~node:n ptg in 
+        let (Some (Gate Join)) = id_find pre ptg.labels in 
+        let [x1;x2] = pre_nodes ~node:pre ptg in 
+
+        match (id_find x1 ptg.labels, id_find x2 ptg.labels) with
+            | (Some (Value v), Some (Gate Wait)) -> ([x1],[x2], v)
+            | (Some (Gate Wait), Some (Value v)) -> ([x2],[x1], v)
+            | _                    -> raise NoFirstValue
+    with
+        Match_failure _ -> raise NoFirstValue;;
+
+(* tries all of the 3 above functions *)
+let first_output_all_patterns ~node:n ptg = 
+    try 
+        first_output_only_delay ~node:n ptg
+    with
+        NoFirstValue -> 
+            begin 
+                try 
+                    first_output_no_delay ~node:n ptg
+                with
+                    NoFirstValue -> 
+                                first_output_delay_and_value ~node:n ptg
+            end;;
+
+
+
+(* Now we can use the previous function to see 
+ * if we can detect the first output of a graph 
+ *)
+let first_output ptg = 
+    let res  = List.map (fun n -> first_output_all_patterns ~node:n ptg) ptg.oports in 
+    let bots = res |> List.map (fun (x,_,_) -> x) |> List.concat    in 
+    let idns = res |> List.map (fun (_,x,_) -> x) |> List.concat    in 
+    let vals = res |> List.map (fun (_,_,x) -> x) in 
+
+    let new_ptg = ptg |> batch ~f:(label_set ~label:(Value Bottom)) ~nodes:bots
+                      |> batch ~f:delay_rem ~nodes:idns
+                      |> batch ~f:main_add  ~nodes:idns
+    in
+    (vals, new_ptg);;
 
 (* TODO
  *
