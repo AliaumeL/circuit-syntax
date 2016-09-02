@@ -11,16 +11,29 @@ open Ptg ;;
 
 (******* DOT OUTPUT ... *******)
 
+(*
+ * Gives the first index at which the element 
+ * x is found inside the list l
+ *
+ * Throws error if x is not inside l 
+ *)
 let rec list_index x = function
     | [] -> failwith "(circuits.ml) [list_index] : error, no such thing"
     | t :: q when t = x -> 0
     | t :: q -> 1 + list_index x q;;
 
 open Dot;;
+
+(* conversion from ptg to a dot graph *)
 let dot_of_ptg ptg = 
+
+    (* all the input ports, traced nodes and delays have the same init rank *)
     let init_rank = rank_group "min" (ptg.iports @ ptg.traced @ ptg.delays) in  
+
+    (* all the output ports have the same maximum rank *) 
     let fin_rank  = rank_group "max" ptg.oports in 
 
+    (* How to draw a main node *)
     let main_node nid =  
         let n = List.length (pre_nodes  ~node:nid ptg) in 
         let m = List.length (post_nodes ~node:nid ptg) in 
@@ -38,9 +51,10 @@ let dot_of_ptg ptg =
                     mkNode nid (baseMod |> inputsOutputs (string_of_label l) n m)
     in
 
+    (* How to get the port number for a node's edge *)
     let node_port_from_edge nid l eid = 
         match id_find nid ptg.labels with
-            | None 
+            | None  (* if it has no label or is a special node -> no port ! *)
             | Some (Gate Join)
             | Some (Gate Fork) 
             | Some Disconnect
@@ -49,9 +63,10 @@ let dot_of_ptg ptg =
                     if List.mem nid ptg.delays then
                         None 
                     else
-                        Some (1 + list_index eid l)
+                        Some (1 + list_index eid l)  (* otherwise it is the index of the edge *)
     in
 
+    (* How to drow an edge between two nodes *)
     let draw_edge eid (a,b) = 
         let l1 = edges_from    ~node:a ptg in 
         let l2 = edges_towards ~node:b ptg in 
@@ -97,7 +112,8 @@ let dot_of_ptg ptg =
             |> List.map (fun x -> mkNode x (emptyMod |> mod_shape "point" |> mod_width 0.1 |> mod_color "grey"))
             |> String.concat "\n"
     in
-
+    
+    (* The actual construction *)
     [ init_rank; fin_rank; main_nodes; inputs; outputs; delays; traced;edges ]
             |> String.concat "\n"
             |> addPrelude;;
@@ -249,6 +265,13 @@ let ptg_to_file fname ptg =
 
 let fc = ref 0;;
 
+(** 
+ * Report a graph.
+ *
+ * Outputs the graph to the standard output
+ * and writes the dot conversion into the 
+ * according testXXX file
+ *)
 let report txt ptg = 
     incr fc;
     let base = Printf.sprintf "test%03d" !fc in 
@@ -257,6 +280,8 @@ let report txt ptg =
     ptg_to_file (base ^ ".dot") ptg;
     Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");;
 
+
+(* Some utility functions for the local rules application *)
 let apply_local_rule rule ptg =  
     List.fold_left (fun t n -> rule ~node:n t) ptg ptg.nodes;;
 
@@ -273,7 +298,11 @@ let rewrite_local rules ptg =
     done;
     !inter;;
         
-   
+  
+(*
+ * The set of rules that will be applied 
+ * by the local reduction algorithm 
+ *)
 let rules = [ Rewriting.remove_identity    ; 
               Rewriting.propagate_constant ;
               Rewriting.propagate_fork     ;
@@ -281,7 +310,9 @@ let rules = [ Rewriting.remove_identity    ;
               Rewriting.disconnect_fork    ;
               Rewriting.reduce_gate        ]
 
-
+(*
+ * Do a single step of reduction 
+ *)
 let looping_reduction_step x = 
     let x = Rewriting.garbage_collect_dual x in
     report "GARBAGE COLLECT" x;
@@ -289,10 +320,16 @@ let looping_reduction_step x =
     report "LOCAL REWRITE" x;
     let x = Rewriting.unfold_trace x in 
     report "TRACE UNFOLDING" x;
+    let x = Rewriting.garbage_collect_dual x in
+    report "GARBAGE COLLECT" x;
     x;;
 
     
-
+(***
+ *
+ * The program's entry point
+ *
+ *)
 let () = 
     print_string "CIRCUITS - \n";
     let file = if Array.length Sys.argv > 1 then 

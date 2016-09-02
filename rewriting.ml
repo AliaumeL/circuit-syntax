@@ -4,12 +4,12 @@ open Ptg;;
 
 (****
  *
- * FIXME utiliser des SET de nodes 
- * quand l'appartenance est souvent 
- * de mise.
+ * FIXME
+ * 
+ * - Use sets instead of lists for better performance in garbage collection
+ * - Use non-persistent datastructures like hash because they have better 
+ *  performace (and we are not using the persistence anyway)
  *
- * Par exemple quand on fait le garbage
- * collection
  *)
 
 (** 
@@ -109,25 +109,53 @@ let disconnect_fork ~node:n t =
     with
         Match_failure _ -> t;;
 
-
+(**
+ * A small function that gets the gate 
+ * out of a node if possible, and otherwise 
+ * fails 
+ *)
 let gate_of_node ~node:n t = 
     match id_find n t.labels with
         | Some (Gate g) -> g
         | _             -> failwith "(gate_of_node) try to get a gate from a non-gate node";;
 
+(** 
+ * A small function that tells if a node 
+ * is a gate 
+ *)
 let is_gate ~node:n t = 
     match id_find n t.labels with
         | Some (Gate g) -> true
         | _             -> false;;
 
+(**
+ * GATE REDUCTION PROCESS
+ *
+ * The gate reduction is made into several phases 
+ *
+ * 0) check if the node is a gate
+ * 1) get the inputs as regular nodes 
+ * 2) get the reduction function corresponding
+ *    to the gate
+ * 3) calculate the output having given the input nodes
+ * 4) rewrite the graph according to the output
+ *
+ *
+ * For this to be easy and non-redundant the gate function 
+ * is going to output a `gate_func_outpt` sum type that 
+ * tells how to rewrite the circuit
+ *)
 type gate_func_outpt = 
-    | Result of value 
-    | Wire   of int 
-    | NoOP;;
+    | Result of value  (* the result is the value given *)
+    | Wire   of int    (* the result is given by the Nth wire *)
+    | NoOP;;           (* there should be no rewriting *)
 
+
+(* The gate function for multiplexer *)
 let reduce_mux inputs = 
     try 
-        let [a;b;c] = inputs in 
+        let [a;b;c] = inputs in  (* first get the inputs *)
+        (* Then determine the function by matching only the first value *)
         match a with
             | Some (Value Bottom) -> Result Bottom 
             | Some (Value Top)    -> Result Top 
@@ -138,13 +166,7 @@ let reduce_mux inputs =
     with
         Match_failure _ -> NoOP;;
 
-(**
- *
- * TODO:
-     * join
-     * nmos
-     * pmos
- *)
+(* The gate function for the nmos transistor *)
 let reduce_nmos inputs = 
     try 
         let [a;b] = inputs in 
@@ -160,6 +182,7 @@ let reduce_nmos inputs =
         Match_failure  _ -> NoOP;;
 
 
+(* The gate function for the pmos transistor *)
 let reduce_pmos inputs = 
     try 
         let [a;b] = inputs in 
@@ -174,7 +197,9 @@ let reduce_pmos inputs =
     with
         Match_failure  _ -> NoOP;;
 
-
+(* A small function that gives the lowest common 
+ * ancestor for two values of the lattice 
+ *)
 let combine_values v1 v2 = match (v1,v2) with
     | Low,  Low -> Low
     | High,High -> High
@@ -185,11 +210,15 @@ let combine_values v1 v2 = match (v1,v2) with
     | Top,x     -> Top
     | x,Top     -> Top;;
 
+(* The previous function extended to whole lists of 
+ * values
+ *)
 let rec combine_values_list w1 w2 = match (w1,w2) with
     | [],_      -> w2
     | _,[]      -> w1
     | a::b,c::d -> (combine_values a c) :: combine_values_list b d;;
 
+(* The gate reduction function for join *)
 let reduce_join inputs = 
     try 
         let [a;b] = inputs in 
@@ -204,7 +233,9 @@ let reduce_join inputs =
     with
         Match_failure _ -> NoOP;;
 
-
+(* The function that tells which reduction fonction 
+ * a gate should use
+ *)
 let fun_of_gate = function
     | Mux  -> reduce_mux
     | Nmos -> reduce_nmos
