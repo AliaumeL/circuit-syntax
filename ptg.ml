@@ -553,11 +553,11 @@ let trace_split ptg =
     let trids  = newids (List.length ptg.traced) in 
     let corres = List.combine ptg.traced trids   in  
 
-    print_string "CORRES : ";
-    corres |> List.map (fun (x,y) -> string_of_int x ^ ":" ^ string_of_int y) 
-           |> String.concat "   " 
-           |> print_string;
-    print_string "\n";
+    (*print_string "CORRES : ";*)
+    (*corres |> List.map (fun (x,y) -> string_of_int x ^ ":" ^ string_of_int y) *)
+           (*|> String.concat "   " *)
+           (*|> print_string;*)
+    (*print_string "\n";*)
 
     (* this function seems complex, but in fact
      * traced nodes have only one input and 
@@ -566,7 +566,7 @@ let trace_split ptg =
      *)
     let copy_pre_conn (x,y) t = 
         let [e]  = edges_towards ~node:x t in 
-        print_string "\n"; print_int e; print_string "\n";
+        (*print_string "\n"; print_int e; print_string "\n";*)
         let n = fst (edge_get_nodes ~edge:e t) in
         t |> edge_rem ~edge:e
           |> edge_add ~from:n ~towards:y

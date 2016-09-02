@@ -547,14 +547,14 @@ let garbage_collect_dual t =
     in 
     let nodes_to_delete     = List.filter filter_func (t.traced @ t.delays @ t.nodes) in 
 
-    print_string "DELETING NODES: ";
-    nodes_to_delete |> List.map (string_of_int)
-                    |> String.concat ", "
-                    |> print_string;
-    print_newline ();
+    (*print_string "DELETING NODES: ";*)
+    (*nodes_to_delete |> List.map (string_of_int)*)
+                    (*|> String.concat ", "*)
+                    (*|> print_string;*)
+    (*print_newline ();*)
     
     let remove_node_safely ~node:n t = 
-        print_string ("\tREMOVE NODE : " ^ string_of_int n ^ "\n");
+        (*print_string ("\tREMOVE NODE : " ^ string_of_int n ^ "\n");*)
 
         (* The edges comming from a reachable node *)
         let pre  = t 

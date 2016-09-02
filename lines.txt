@@ -1,1 +1,1 @@
-link a:b for HIGH 
+(HIGH | (LOW . WAIT) | (TOP . WAIT . WAIT)) . (JOIN | 1) . JOIN

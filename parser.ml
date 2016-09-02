@@ -159,8 +159,9 @@ let circuit_of_name = function
     | "NMOS" -> const "NMOS" 2 1
     | "HIGH" -> const "HIGH" 0 1
     | "LOW"  -> const "LOW"  0 1
-    | "MUX"  -> const "MUX"  3 1
     | "BOT"  -> const "BOT"  0 1
+    | "TOP"  -> const "TOP"  0 1
+    | "MUX"  -> const "MUX"  3 1
     | "WAIT" -> const "WAIT" 1 1
     | "DISC" -> const "DISC" 1 0
     | "FORK" -> const "FORK" 1 2

@@ -276,7 +276,7 @@ let report txt ptg =
     incr fc;
     let base = Printf.sprintf "test%03d" !fc in 
     print_string (txt ^ ": " ^ base ^ "\n");
-    ptg |> string_of_ptg |> print_string ;
+    (*ptg |> string_of_ptg |> print_string ;*)
     ptg_to_file (base ^ ".dot") ptg;
     Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");;
 
@@ -320,13 +320,21 @@ let looping_reduction_step x =
     let x = rewrite_local rules x in
     report "LOCAL REWRITE" x;
 
-    let x = Rewriting.unfold_trace x in 
-    report "TRACE UNFOLDING" x;
+    try 
+        let (v, x1) = Rewriting.first_output x in 
+        print_string "OUTPUT DETECTED : ";
+        v |> List.map string_of_value |> String.concat ", " |> print_string;
+        print_newline ();
+        x1
+    with
+        Rewriting.NoFirstValue -> 
+            let x = Rewriting.unfold_trace x in 
+            report "TRACE UNFOLDING" x;
 
-    let x = Rewriting.garbage_collect_dual x in
-    report "GARBAGE COLLECT" x;
+            let x = Rewriting.garbage_collect_dual x in
+            report "GARBAGE COLLECT" x;
 
-    x;;
+            x;;
 
     
 (***
