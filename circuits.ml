@@ -28,7 +28,7 @@ open Dot;;
 let dot_of_ptg ptg = 
 
     (* all the input ports, traced nodes and delays have the same init rank *)
-    let init_rank = rank_group "min" (ptg.iports @ ptg.traced @ ptg.delays) in  
+    let init_rank = rank_group "min" (ptg.iports @ ptg.traced ) in  
 
     (* all the output ports have the same maximum rank *) 
     let fin_rank  = rank_group "max" ptg.oports in 
@@ -275,7 +275,7 @@ let fc = ref 0;;
 let report txt ptg = 
     incr fc;
     let base = Printf.sprintf "test%03d" !fc in 
-    print_string (txt ^ ": " ^ base ^ "\n");
+    (*print_string (txt ^ ": " ^ base ^ "\n");*)
     (*ptg |> string_of_ptg |> print_string ;*)
     ptg_to_file (base ^ ".dot") ptg;
     Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");;
@@ -304,7 +304,7 @@ let rewrite_local rules ptg =
  * by the local reduction algorithm 
  *)
 let rules = [ Rewriting.remove_identity    ; 
-              Rewriting.propagate_constant ;
+              Rewriting.propagate_constant ; 
               Rewriting.propagate_fork     ;
               Rewriting.bottom_join        ;
               Rewriting.disconnect_fork    ;
@@ -320,6 +320,9 @@ let looping_reduction_step x =
     let x = rewrite_local rules x in
     report "LOCAL REWRITE" x;
 
+    (*let x = Rewriting.garbage_collect_dual x in*)
+    (*report "GARBAGE COLLECT" x;*)
+
     try 
         let (v, x1) = Rewriting.first_output x in 
         print_string "OUTPUT DETECTED : ";
@@ -331,8 +334,8 @@ let looping_reduction_step x =
             let x = Rewriting.unfold_trace x in 
             report "TRACE UNFOLDING" x;
 
-            let x = Rewriting.garbage_collect_dual x in
-            report "GARBAGE COLLECT" x;
+            (*let x = Rewriting.garbage_collect_dual x in*)
+            (*report "GARBAGE COLLECT" x;*)
 
             x;;
 
@@ -353,12 +356,14 @@ let () =
     report "INIT" !x;
     x := Rewriting.normal_timed_form !x;
     report "INIT" !x;
-    report "INIT" (Rewriting.unfold_trace !x); 
 
-    let n = 6 in 
+    let n = 10 in 
 
     for i = 1 to n do 
         x := looping_reduction_step !x 
-    done;;
+    done;
+    x := Rewriting.garbage_collect_dual !x;
+    report "GARBAGE COLLECT" !x;
+    ();;
 
 

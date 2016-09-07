@@ -20,7 +20,7 @@ let propagate_constant ~node:n t =
     try (* pattern matching failure means no modification *)
         let Some (Value v) = id_find n t.labels             in 
         let [traced_node]  = post_nodes ~node:n           t in 
-        let [next_node  ]  = post_nodes ~node:traced_node t in 
+        let [next_node]    = post_nodes ~node:traced_node t in 
         if not (List.mem traced_node t.traced) || List.mem next_node t.delays then 
             t
         else
@@ -338,6 +338,8 @@ let normalize_delay ~node:n ptg =
 
         let trace_node         = newid ()  in 
         let trace_edge         = neweid () in 
+
+        print_string "Normalize delay\n";
         
         ptg |> edge_insert_node ~edge:e ~node:trace_node ~using:trace_edge 
             |> trace_add ~node:trace_node
@@ -378,7 +380,6 @@ let rewrite_delays g1 =
 
     (* Creating new special nodes *)
     let new_trace    = newids (List.length post1)      in (* trace dispatch    *)
-    let new_inputs   = newids (List.length g1.iports)  in (* input dispatch    *)
     let new_delays   = newids (List.length g1.oports)  in (* delays at the end *)
     let new_outputs  = newids (List.length g1.oports)  in (* outputs merge     *)
 
@@ -405,7 +406,7 @@ let rewrite_delays g1 =
         (** adding nodes in reverse order to keep the same order
          * in the end ...
          *)
-        |> batch ~f:iport_add    ~nodes:(List.rev new_inputs)
+        |> batch ~f:iport_add    ~nodes:(List.rev g2.iports)
         |> batch ~f:oport_add    ~nodes:(List.rev new_outputs)
 
         (* Dispatching the trace *)
@@ -414,13 +415,6 @@ let rewrite_delays g1 =
                           ~from2:bottoms_pre 
                           ~fst:pre1       
                           ~snd:pre2
-
-        (* Dispatching the inputs *)
-        |> dispatch_with  ~f:is_delayed        
-                          ~from1:new_inputs         
-                          ~from2:bottoms_ipts
-                          ~fst:g1.iports  
-                          ~snd:g2.iports 
 
         (* Disconnecting the trace output for the second graph *)
         |> batch ~f:(label_set ~label:Disconnect)  ~nodes:post1 
@@ -432,6 +426,8 @@ let rewrite_delays g1 =
 
         |> connect        ~from:g1.oports      
                           ~towards:new_delays
+        |> connect        ~from:bottoms_ipts 
+                          ~towards:g1.iports
 
         |> mk_join        ~fst:new_delays 
                           ~snd:g2.oports

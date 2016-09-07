@@ -225,8 +225,8 @@ let link ~vars ~dag:g =
     let di = List.length d in 
 
     (** adding the bottoms *)
-    let disc = c |> List.mapi (fun k (_,v) -> (k + m + ci + di + 1, v)) in 
-    let bots = d |> List.mapi (fun k (_,v) -> (k + m + ci + ci + di + 1, v)) in 
+    let disc = c |> List.mapi (fun k (_,v) -> (k + m + ci + di + 2, v)) in 
+    let bots = d |> List.mapi (fun k (_,v) -> (k + m + ci + ci + di + 3, v)) in 
 
 
     (* The edges for each instance of a variable to 
