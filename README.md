@@ -24,6 +24,15 @@ To compile and run the circuits
 make circuits 
 ```
 
+
+To update your version of the repository 
+
+```
+git pull origin master
+```
+
+
+
 ## Syntax overview 
 
 The syntax to describe circuits is pretty simple, and has three different
@@ -76,6 +85,8 @@ link a:b c:d ... for CIRCUIT
 ```
 
 There is also the `.` for sequential composition and the `|` for parallel composition.
+
+The trace is not an operator yet, because it can be replaced by link.
 
 #### SEQ and PAR
 
