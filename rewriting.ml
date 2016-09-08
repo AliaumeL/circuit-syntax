@@ -339,8 +339,6 @@ let normalize_delay ~node:n ptg =
         let trace_node         = newid ()  in 
         let trace_edge         = neweid () in 
 
-        print_string "Normalize delay\n";
-        
         ptg |> edge_insert_node ~edge:e ~node:trace_node ~using:trace_edge 
             |> trace_add ~node:trace_node
             |> main_rem  ~node:n
@@ -375,8 +373,23 @@ let normal_timed_form ptg =
 let rewrite_delays g1 =
     let (_, g2) = replicate g1 in 
 
-    let (pre1,post1,g1) = trace_split g1 in 
-    let (pre2,post2,g2) = trace_split g2 in 
+    (* Now that g2 is a proper copy, we replace the values inside 
+     * g1 with bottoms, because it is going to be the graph with 
+     * delayed output, and it should not have any constant values 
+     * inside 
+     *)
+    let replace_value ~node:n ptg = 
+        match id_find n ptg.labels with
+            | Some (Value _) -> label_set ~label:(Value Bottom) ~node:n ptg
+            | _              -> ptg
+    in
+    let g1      = batch ~f:replace_value
+                        ~nodes:g1.nodes 
+                        g1
+    in
+
+    let (pre1,post1,g1) = trace_split g1 in (* the one with delays *)
+    let (pre2,post2,g2) = trace_split g2 in (* the one without     *)
 
     (* Creating new special nodes *)
     let new_trace    = newids (List.length post1)      in (* trace dispatch    *)

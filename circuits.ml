@@ -320,8 +320,8 @@ let looping_reduction_step x =
     let x = rewrite_local rules x in
     report "LOCAL REWRITE" x;
 
-    (*let x = Rewriting.garbage_collect_dual x in*)
-    (*report "GARBAGE COLLECT" x;*)
+    let x = Rewriting.garbage_collect_dual x in
+    report "GARBAGE COLLECT" x;
 
     try 
         let (v, x1) = Rewriting.first_output x in 
@@ -334,8 +334,8 @@ let looping_reduction_step x =
             let x = Rewriting.unfold_trace x in 
             report "TRACE UNFOLDING" x;
 
-            (*let x = Rewriting.garbage_collect_dual x in*)
-            (*report "GARBAGE COLLECT" x;*)
+            let x = Rewriting.garbage_collect_dual x in
+            report "GARBAGE COLLECT" x;
 
             x;;
 
