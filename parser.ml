@@ -174,8 +174,29 @@ let circuit_of_name = function
  * variable of the grammar is just converted into a 
  * recursive function that parses (because the grammar is LL)
  *
+ * Bon, il faut gérer l'AST, la structure de sortie c'est 
+ *
+ *                 [String * AST] * AST
+ *
+ * Et ensuite faire le remplacement textuel, 
+ *
+ *
  *)
-let rec parse_parallel s i = (* P *) 
+
+let rec parse_let s i = 
+    let combine circ_name circ_def (dict,circ) = 
+        ((circ_name,circ_def) :: dict, circ)
+    in
+    begin
+        (pure combine <*> 
+            begin 
+                parse_sstring "let" <*>> parse_circ_name <<*> parse_sstring "="
+            end
+            <*> parse_parallel <*> (parse_sstring "in" <*>> parse_let)) <|>
+        (pure (fun x -> ([], x)) <*> parse_parallel)
+    end s i 
+
+and parse_parallel s i = (* P *) 
     begin 
         pure (|||) <*> parse_sequential <*> parse_parallel_rec
     end s i
@@ -260,6 +281,19 @@ and parse_base s i =
 let parse_ast s = match parse_parallel s 0 with 
     | None       -> failwith "parsing failed"
     | Some (x,k) -> x;; 
+
+
+let parse_eval s = match parse_let s 0 with
+    | None  -> failwith "parsing failed"
+    | Some ((dict,ast),k) -> 
+            let dict = List.rev dict in 
+            let apply_func ast (key, value) = 
+                foldc (function 
+                    | Const (x,_,_) when key = x -> value 
+                    | x                          -> Circ x)
+                     ast
+            in
+            List.fold_left apply_func ast dict;;
 
 
 (******* TESTS DE PARSING ********)
