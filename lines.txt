@@ -1,1 +1,1 @@
-((LOW . WAIT) | (HIGH . WAIT . WAIT)) . JOIN
+HIGH 

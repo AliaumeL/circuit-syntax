@@ -242,7 +242,8 @@ let get_dag_of_file file =
     print_string "\n\nLEXED : ";
     print_string lexed;
     print_string "\n\n\n";
-    let parsed = lexed |> Parser.parse_ast in 
+    (*let parsed = lexed |> Parser.parse_ast in *)
+    let parsed = lexed |> Parser.parse_eval in 
     print_string "\n\nPARSED : ";
     print_string (Ast.print_ast parsed);
     print_string "\n\n\n";
