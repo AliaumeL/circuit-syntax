@@ -93,6 +93,43 @@ The trace is not an operator yet, because it can be replaced by link.
 Inside a `SEQ ... END` bloc the newlines are replaced with sequential composition of the lines (with implicit parenthesis
 around each line). The same goes for parallel composition and `PAR ... END`.
 
+#### LET construction
+
+In order to define complex circuits it is often needed to build separate subcircuits and use them one or several time 
+in a bigger expression : this is the only thing that the `let` construction does.
+
+The syntax is the following :
+
+```
+let NameStartingWithACapitalLetter = regular circuit syntax  in
+...
+let ... = ... in 
+main circuit definition 
+```
+
+Note that the variable substitution is done textually, meaning that the circuit is _copied_ into the places of use. 
+Therefore, if the expression contains free variables, they can be bound differently in each use of the circuit, an 
+example can illustrate this behaviour :
+
+```
+let SingleVariable = :a in 
+(link b:a for ( b: | SingleVariable)) | (link c:a for SingleVariable . c:)
+```
+
+```
+(link b:a for ( b: | :a)) | (link c:a for :a . c:)
+```
+
+Note that variable can be used inside `let` expressions, just like in ocaml : 
+
+```
+let Variable1 = expr1 in 
+let Variable2 = expr2 that can contain Variable1 in 
+...
+```
+
+There is no way to express mutually recursive definition with let bindings, as it would mean constructing circuits
+with infinite depth.
 
 ### Building circuits with the AST direcly 
 
