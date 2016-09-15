@@ -1,1 +1,3 @@
-HIGH 
+link a:b for 
+link c:d for 
+(a: | c:) . (:d | :b)

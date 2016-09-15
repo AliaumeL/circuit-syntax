@@ -210,7 +210,7 @@ let parallel ~top:p ~bottom:q =
  *)
 let link ~vars ~dag:g = 
     let m  = maxid g in 
-
+    
     (* Input variable _names_ *)
     let vi = vars |> List.map snd |> remove_duplicates in
 
@@ -220,13 +220,14 @@ let link ~vars ~dag:g =
     (* c : vi -> node_id *)
     let c  = vi |> List.mapi (fun i v -> (v,i + m + 1)) in  
     let ci = List.length c in 
+
     (* d : vi -> node_id *)
     let d  = vo |> List.mapi (fun i v -> (v,i + m + ci + 1)) in 
     let di = List.length d in 
 
     (** adding the bottoms *)
     let disc = c |> List.mapi (fun k (_,v) -> (k + m + ci + di + 2, v)) in 
-    let bots = d |> List.mapi (fun k (_,v) -> (k + m + ci + ci + di + 3, v)) in 
+    let bots = d |> List.mapi (fun k (_,v) -> (k + m + ci + ci + di + 2, v)) in 
 
 
     (* The edges for each instance of a variable to 
@@ -262,8 +263,8 @@ let link ~vars ~dag:g =
     {
         iports   = g.iports                                        ;
         oports   = g.oports                                        ;
-        nodes    = (List.map (fun x -> (fst x, 0, 0)) disc) @ 
-                   (List.map (fun x -> (fst x, 0, 0)) bots) @
+        nodes    = (List.map (fun x -> (fst x, 0, 0)) bots) @      (* the order matters !!!! *)
+                   (List.map (fun x -> (fst x, 0, 0)) disc) @
                    (List.map (fun x -> (snd x, 0, 0)) d) @
                    (List.map (fun x -> (snd x, 0, 0)) c) @ g.nodes ;
         edges    = ebots @ edisc @ ei @ eo @ eb @ g.edges          ;
