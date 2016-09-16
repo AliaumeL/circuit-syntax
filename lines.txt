@@ -1,3 +1,6 @@
-link a:b for 
-link c:d for 
-(a: | c:) . (:d | :b)
+let X = link a:b c:d for (a: | c:) . (:d | :b) in 
+let N = X . NMOS in
+let P = X . PMOS in 
+let INV = (HIGH | FORK | LOW) . (P | NMOS) . JOIN in
+let C = (FORK | FORK) . (INV | 3) . (1 | X | 1) . (PMOS | NMOS) . JOIN
+in C 

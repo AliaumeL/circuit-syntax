@@ -157,6 +157,9 @@ let convert_label = function
             end;;
 
 let ptg_of_dag dag = 
+    
+    (*Dags.debug_dag dag;*)
+
     (* FIRST OF ALL TRANSLATE ALL THE NAMES SO THAT
      * THEY DO NOT CONFLICT WITH OTHER PTG NAMES
      *)
@@ -309,6 +312,7 @@ let rules = [ Rewriting.remove_identity    ;
               Rewriting.propagate_fork     ;
               Rewriting.bottom_join        ;
               Rewriting.disconnect_fork    ;
+              Rewriting.bottom_delay       ;
               Rewriting.reduce_gate        ]
 
 (*
@@ -358,10 +362,14 @@ let () =
     x := Rewriting.normal_timed_form !x;
     report "INIT" !x;
 
-    let n = 10 in 
+    let n = 15 in 
 
     for i = 1 to n do 
-        x := looping_reduction_step !x 
+        let y = looping_reduction_step !x in 
+        if y == !x then 
+            failwith "No more modification possible"
+        else
+            x := y
     done;
     x := Rewriting.garbage_collect_dual !x;
     report "GARBAGE COLLECT" !x;
