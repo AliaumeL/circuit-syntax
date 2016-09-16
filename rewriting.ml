@@ -102,6 +102,24 @@ let bottom_join ~node:n t =
     with
         Match_failure _ -> t;;
 
+let bottom_delay ~node:n t = 
+    try 
+        let Some (Value Bottom) = id_find n t.labels in 
+        let [traced] = post_nodes ~node:n t in 
+        let [delay]  = post_nodes ~node:traced t in 
+        if id_find delay t.labels = Some (Gate Wait) &&
+           id_find traced t.labels = None then 
+            t |> main_rem ~node:n 
+              |> main_rem ~node:traced
+              |> trace_rem ~node:traced
+              |> delay_rem ~node:delay
+              |> main_rem  ~node:delay
+              |> main_add  ~node:delay
+              |> label_set ~label:(Value Bottom) ~node:delay
+        else
+            t
+    with
+        Match_failure _ -> t;;
 
 let disconnect_fork ~node:n t = 
     try (* pattern matching failure means no modification *)
@@ -452,11 +470,15 @@ let rewrite_delays g1 =
 (**
  * 
  * trace unfolding !
- * for now without delays 
+ *
+ * The first operation is to check 
+ * if the delay rule is needed. If not
+ * a simpler algorithm is used, and NO
+ * DELAYS are added !
  *
  *)
 let unfold_trace g1 = 
-    if g1.traced <> [] then 
+    if g1.traced <> [] && g1.delays <> [] then 
         (* Construct a new graph with the 
          * right dispatching of inputs - trace nodes,
          * the disconnects in the right places,
@@ -486,6 +508,25 @@ let unfold_trace g1 =
 
              |> batch ~f:normalize_delay ~nodes:new_delays
              |> batch ~f:delay_add       ~nodes:g1.delays
+    else if g1.traced <> [] then 
+        let g2 = snd (replicate g1) in 
+        let (pre1,post1,g1) = trace_split g1 in 
+        let (pre2,post2,g2) = trace_split g2 in 
+        let new_inputs = newids (List.length g1.iports) in
+
+        ptg_merge g1 g2
+             |> batch ~f:(label_set ~label:Disconnect)    ~nodes:g1.oports
+             |> batch ~f:(label_set ~label:Disconnect)    ~nodes:post2
+
+             |> mk_fork  ~from:post1       ~fst:pre2      ~snd:pre1 
+             |> mk_fork  ~from:new_inputs  ~fst:g1.iports ~snd:g2.iports
+
+             (* remove from main nodes before adding elsewhere ! *) 
+             |> batch ~f:main_rem     ~nodes:(pre1 @ g2.oports)
+             
+             |> batch ~f:trace_add    ~nodes:(List.rev pre1)
+             |> batch ~f:iport_add    ~nodes:(List.rev new_inputs)
+             |> batch ~f:oport_add    ~nodes:(List.rev g2.oports)
     else
         g1
 
