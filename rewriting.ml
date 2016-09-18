@@ -211,9 +211,9 @@ let reduce_pmos inputs =
         let [a;b] = inputs in 
         match (a,b) with
             | Some (Value Bottom), _                 -> Result Top
-            | Some (Value Low)   , _                 -> Result Bottom
-            | Some (Value High), Some (Value High)   -> Result Bottom
-            | Some (Value High), Some (Value x)      -> Result x
+            | Some (Value High)  , _                 -> Result Bottom
+            | Some (Value Low) , Some (Value High)   -> Result High
+            | Some (Value Low) , Some (Value x)      -> Result Bottom
             | Some (Value Top) , Some (Value Bottom) -> Result Bottom
             | Some (Value Top) , Some (Value _)      -> Result Top 
             | _ -> NoOP
