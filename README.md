@@ -64,15 +64,15 @@ The constant circuits are in capital letters. The following circuits are availab
 * FORK
 * JOIN
 * MUX
-* NMOS
-* PMOS
+* NMOS (first entry = G, second entry = S)
+* PMOS (first entry = G, second entry = S)
 * BOT  (value bottom)
 * TOP  (value illegal)
 * HIGH (value high)
 * LOW  (value low)
 * DISC (disconnect gate)
 * WAIT (delay node)
-* Any other capital letter circuit is considered as a « box » with type 1->1, except `F`, `G` and `H` (for debugging purpose)
+* Any other capital letter circuit is considered as a « box » with type 1->1, except `F`, `G` and `H` (for debugging purpose) and circuit that are declared 
 
 The symmetry is not a circuit yet.
 
