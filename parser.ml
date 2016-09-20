@@ -253,8 +253,8 @@ and parse_circ_name s i =
 (* E *)
 and parse_base s i = 
     begin
-        (parse_char '('                <*>> parse_parallel       
-                                      <<*>  parse_char ')')                  
+        (parse_char '('                <*>> (ign_space <*>> parse_parallel)
+                                      <<*>  (ign_space <*>> parse_char ')'))                  
         <|>
         (pure id                       <*>  parse_int)                      
         <|>
