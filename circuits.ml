@@ -153,6 +153,7 @@ let convert_label = function
                    | "DISC" -> Disconnect
                    | "OR"   -> Gate Or
                    | "AND"  -> Gate And
+                   | "NOT"  -> Gate Not
                    | "FORK" -> Gate Fork
                    | "JOIN" -> Gate Join
                    |   x    -> Gate (Box x)

@@ -1,4 +1,4 @@
-link xO:xI yO:yI for
+HIGH . link xO:xI yO:yI for
 PAR
     xO:
     (:xI | :yI) . AND 

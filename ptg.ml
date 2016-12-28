@@ -98,6 +98,7 @@ type gate =
     | Nmos
     | Pmos
     | And
+    | Not
     | Or
     | Box of string
     | Wait 

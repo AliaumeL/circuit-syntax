@@ -245,6 +245,18 @@ let reduce_or inputs =
   with
       Match_failure _ -> NoOP;;
 
+let reduce_not inputs = 
+  try
+    let [a] = inputs in 
+      match a with
+        | Some (Value High)   -> Result Low 
+        | Some (Value Low)    -> Result High
+        | Some (Value Top)    -> Result Top
+        | Some (Value Bottom) -> Result Bottom 
+        | _                   -> NoOP
+  with
+      Match_failure _ -> NoOP;;
+
 
 (* 
  * A small function that gives the lowest common 
@@ -293,7 +305,8 @@ let fun_of_gate = function
     | Join -> reduce_join
     | And  -> reduce_and
     | Or   -> reduce_or
-    | _   -> (fun _ -> NoOP);;
+    | Not  -> reduce_not
+    | _    -> (fun _ -> NoOP);;
 
 (** 
  * Gate reduction 
