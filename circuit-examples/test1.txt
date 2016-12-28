@@ -1,4 +1,3 @@
-HIGH . 
 link xO:xI zO:zI for
 PAR
     xO:

@@ -194,6 +194,7 @@ let string_of_gate = function
     | Wait  -> "W"
     | And   -> "AND"
     | Or    -> "OR"
+    | Not   -> "NOT"
     | Mux   -> "M";;
 
 let rec string_of_value = function

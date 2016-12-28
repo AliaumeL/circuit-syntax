@@ -286,7 +286,8 @@ let report txt ptg =
     (*print_string (txt ^ ": " ^ base ^ "\n");*)
     (*ptg |> string_of_ptg |> print_string ;*)
     ptg_to_file (base ^ ".dot") ptg;
-    Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");;
+    Sys.command ("dot -Tpdf " ^ base ^ ".dot" ^ " -o " ^ base ^ ".pdf");
+    ();;
 
 
 (* Some utility functions for the local rules application *)

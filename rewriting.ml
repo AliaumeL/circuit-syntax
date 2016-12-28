@@ -226,6 +226,8 @@ let reduce_and inputs =
   try 
     let [a;b] = inputs in 
       match (a,b) with
+        | Some (Value Top) , _ -> Result Top
+        | _, Some (Value Top) -> Result Top
         | Some (Value Low), _    -> Result Low
         | _,  Some (Value Low)   -> Result Low
         | Some (Value High), Some (Value High) -> Result High
@@ -238,6 +240,8 @@ let reduce_or inputs =
   try 
     let [a;b] = inputs in 
       match (a,b) with
+        | Some (Value Top) , _ -> Result Top
+        | _, Some (Value Top) -> Result Top
         | Some (Value High), _    -> Result High
         | _ ,  Some (Value High)   -> Result High
         | Some (Value Low), Some (Value Low) -> Result Low

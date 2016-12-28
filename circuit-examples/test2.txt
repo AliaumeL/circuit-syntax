@@ -1,0 +1,6 @@
+link xO:xI yO:yI for
+PAR
+    xO:
+    (:xI | :yI) . AND 
+    (:yI | :xI) . OR . yO:
+END
