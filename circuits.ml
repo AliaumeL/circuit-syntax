@@ -158,9 +158,10 @@ let convert_label = function
 
 let ptg_of_dag dag = 
     
-    (*Dags.debug_dag dag;*)
+    (* Dags.debug_dag dag; *)
 
-    (* FIRST OF ALL TRANSLATE ALL THE NAMES SO THAT
+    (* 
+     * FIRST OF ALL TRANSLATE ALL THE NAMES SO THAT
      * THEY DO NOT CONFLICT WITH OTHER PTG NAMES
      *)
     let dag    = mapids (fun x -> x + !counter) dag in 
@@ -278,7 +279,7 @@ let fc = ref 0;;
  *)
 let report txt ptg = 
     incr fc;
-    let base = Printf.sprintf "test%03d" !fc in 
+    let base = Printf.sprintf "graphics/test%03d" !fc in 
     (*print_string (txt ^ ": " ^ base ^ "\n");*)
     (*ptg |> string_of_ptg |> print_string ;*)
     ptg_to_file (base ^ ".dot") ptg;

@@ -24,13 +24,22 @@ To compile and run the circuits
 make circuits 
 ```
 
-
-To update your version of the repository 
+Once it is built, you will be able to use it with the following 
+console command :
 
 ```
-git pull origin master
+./circuits
 ```
 
+Note that the default circuit is obtained by reading `lines.txt`, 
+but any alternative text file can be used by supplying the filename 
+as an argument :
+
+```
+./circuits filename
+```
+
+The graphics are generated in a separate directory called `graphics`.
 
 
 ## Syntax overview 

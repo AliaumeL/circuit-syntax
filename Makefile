@@ -15,11 +15,12 @@ tests: $(OSRC) tests.ml
 	./tests
 
 circuits: $(OSRC) circuits.ml
+	mkdir -p graphics
 	$(OCAMLCC) -g -o circuits $(OSRC) circuits.ml
 	./circuits
 
 clean:
 	rm *.cmi
 	rm *.cmo
-	rm *.pdf
-	rm *.dot
+	rm graphics/*.pdf
+	rm graphics/*.dot
