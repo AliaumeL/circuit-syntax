@@ -1,10 +1,6 @@
-let NAND1 = (2 | LOW) . (1 | NMOS) . NMOS in
-let NAND2 = (HIGH | 1 | HIGH  | 1) . (NMOS | NMOS) . JOIN in
-let NAND =
-	link a0:a1 b0:b1 c1:c0 for
-	PAR
-		(a0: | b0:) . :c0
-		(:a1 | :b1) . NAND1 . c1:
-		(:a1 | :b1) . NAND2 . c1:
-	END in
-(HIGH | LOW) . NAND
+link xO:xI yO:yI for
+PAR
+    xO:
+    (:xI | :yI) . AND 
+    (:yI | :xI) . OR . yO:
+END

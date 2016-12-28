@@ -220,7 +220,34 @@ let reduce_pmos inputs =
     with
         Match_failure  _ -> NoOP;;
 
-(* A small function that gives the lowest common 
+
+(* The gate function for the AND gate *)
+let reduce_and inputs = 
+  try 
+    let [a;b] = inputs in 
+      match (a,b) with
+        | Some (Value Low), _    -> Result Low
+        | _,  Some (Value Low)   -> Result Low
+        | Some (Value High), Some (Value High) -> Result High
+        | _                                    -> NoOP 
+  with
+      Match_failure _ -> NoOP;;
+
+(* The gate function for the OR gate *)
+let reduce_or inputs = 
+  try 
+    let [a;b] = inputs in 
+      match (a,b) with
+        | Some (Value High), _    -> Result High
+        | _ ,  Some (Value High)   -> Result High
+        | Some (Value Low), Some (Value Low) -> Result Low
+        | _                                    -> NoOP 
+  with
+      Match_failure _ -> NoOP;;
+
+
+(* 
+ * A small function that gives the lowest common 
  * ancestor for two values of the lattice 
  *)
 let combine_values v1 v2 = match (v1,v2) with
@@ -264,6 +291,8 @@ let fun_of_gate = function
     | Nmos -> reduce_nmos
     | Pmos -> reduce_pmos
     | Join -> reduce_join
+    | And  -> reduce_and
+    | Or   -> reduce_or
     | _   -> (fun _ -> NoOP);;
 
 (** 

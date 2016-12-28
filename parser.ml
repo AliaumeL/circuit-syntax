@@ -166,6 +166,8 @@ let circuit_of_name = function
     | "DISC" -> const "DISC" 1 0
     | "FORK" -> const "FORK" 1 2
     | "JOIN" -> const "JOIN" 2 1
+    | "AND"  -> const "AND"  2 1
+    | "OR"   -> const "OR"   2 1
     |  x     -> const x      1 1;;
 
 (**** THE GRAMMAR 

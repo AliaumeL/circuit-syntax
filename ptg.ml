@@ -97,6 +97,8 @@ type gate =
     | Join
     | Nmos
     | Pmos
+    | And
+    | Or
     | Box of string
     | Wait 
     | Mux;;
@@ -189,6 +191,8 @@ let string_of_gate = function
     | Pmos  -> "P"
     | Box s -> "B " ^ s 
     | Wait  -> "W"
+    | And   -> "AND"
+    | Or    -> "OR"
     | Mux   -> "M";;
 
 let rec string_of_value = function

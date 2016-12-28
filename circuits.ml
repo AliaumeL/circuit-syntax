@@ -151,6 +151,8 @@ let convert_label = function
                    | "PMOS" -> Gate  Pmos
                    | "WAIT" -> Gate  Wait
                    | "DISC" -> Disconnect
+                   | "OR"   -> Gate Or
+                   | "AND"  -> Gate And
                    | "FORK" -> Gate Fork
                    | "JOIN" -> Gate Join
                    |   x    -> Gate (Box x)
@@ -300,6 +302,7 @@ let rewrite_local rules ptg =
     while not (!inter == !older) do (* test physical equality in constant time *)
         older := !inter;
         inter := apply_local_rules rules !inter;
+        report "LOCAL REWRITE RULE APPLY" !inter;
     done;
     !inter;;
         
