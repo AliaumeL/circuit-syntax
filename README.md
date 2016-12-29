@@ -9,6 +9,7 @@ This program needs
 
 * A recent version of the ocaml compiler 
 * GNU Make 
+* Graphviz (dot)
 
 ## Building and running 
 
@@ -172,3 +173,29 @@ using the `const` operator and setting the string parameter
 with the name of the circuit you want. The list of
 reserved circuit names and their meaning is described in 
 the constant circuit section of the syntax.
+
+
+# Program structure 
+
+A run of the program follow theses steps:
+
+1. First it will read and parse a text file and produce some raw ast
+2. Then the type checker is going to produce a typed ast (a type is the number of inputs/the number of outputs)
+3. Using the type information a DAG is produced, this DAG is an intermediate representation with no real notion of « gate », for which the link structure is really easy to translate 
+4. This DAG is then transformed into a PTG (planar traced graph) which is the "true" representation, this step makes explicit all the structure from the DAG : n-ary forks are made of 2-ary forks, etc ...
+5. The PTG is then iteratively rewritten using the rewrite rules that are sound and complete for the representation 
+6. The PTG is written into DOT format (graphviz)
+7. The dot file is compiled into a PDF using `dot -Tpdf`
+
+The DAG structure is here for historical reasons and will ultimately be removed, but right now it serves debugging purpose.
+
+* `ast.ml` : description of the typed and untyped ast
+* `lexer.ml` : the lexer that prepares a file before parsing
+* `parser.ml` : the parser that produces ast 
+* `dags.ml` : the definition of a DAG and the operations on them  
+* `compiler.ml` : uses a typed ast and the operations on DAGs to build a DAG corresponding to the ast
+* `solver.ml` : some solver for linear systems that is used to infer types 
+* `typesystem.ml` : the algorithm that produces the set of constraints to infer the types of the expressions
+* `ptg.ml` : definitions of ptgs and basic operations on them
+* `rewriting.ml` : the rewriting rules for PTGs
+* `circuits.ml` : the main entry point, is also doing the dot output, the DAG->PTG conversion and controls the rewriting calls
