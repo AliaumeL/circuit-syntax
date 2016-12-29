@@ -17,7 +17,6 @@ tests: $(OSRC) tests.ml
 circuits: $(OSRC) circuits.ml
 	mkdir -p graphics
 	$(OCAMLCC) -g -o circuits $(OSRC) circuits.ml
-	./circuits
 
 clean:
 	rm *.cmi
